@@ -247,6 +247,12 @@ services:
       # on restart -- acceptable for a single-instance internal tool.
       MOCK_REDIS: 'true'
       DATABASE_URL: ${DATABASE_URL}
+      # apps/app/prisma/client.ts carries its own copy of the ssl-config logic
+      # and forces verified TLS for any non-localhost host, so /api/health's
+      # `SELECT 1` fails against the self-signed postgres cert with
+      # "Error opening a TLS connection: self-signed certificate". The route
+      # then 500s, the container goes unhealthy, and Traefik drops it -> 404.
+      PRISMA_ALLOW_INSECURE_TLS: '1'
       AUTH_SECRET: ${AUTH_SECRET}
       SECRET_KEY: ${SECRET_KEY}
       REVALIDATION_SECRET: ${REVALIDATION_SECRET}
