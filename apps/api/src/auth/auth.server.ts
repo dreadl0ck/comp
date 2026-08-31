@@ -71,15 +71,34 @@ const corsRedisClient = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
+// AT-PATCH: skip the cache entirely when Upstash is not configured.
+//
+// getCustomDomains() runs on EVERY request that carries an Origin header, via
+// isTrustedOrigin() in the CORS middleware. With UPSTASH_REDIS_REST_URL unset
+// the client is still constructed and still issues commands, and @upstash/redis
+// retries with exponential backoff before giving up -- roughly 4.3s. The
+// function makes two round trips (a get, then a set after the DB fallback), so
+// each such request paid about 8.6 seconds.
+//
+// Every server-rendered page hits this, because apps/app's headersToObject
+// substitutes `origin: API_URL` when the browser sends none. The result was a
+// hard ~8.8s on every single page while each endpoint measured ~2ms without an
+// Origin header. Falling straight through to the DB makes it ~2ms.
+const REDIS_CONFIGURED = Boolean(
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN,
+);
+
 async function getCustomDomains(): Promise<Set<string>> {
   // Try Redis cache first (non-fatal if Redis is unavailable)
-  try {
-    const cached = await corsRedisClient.get<string[]>(CORS_DOMAINS_CACHE_KEY);
-    if (cached) {
-      return new Set(cached);
+  if (REDIS_CONFIGURED) {
+    try {
+      const cached = await corsRedisClient.get<string[]>(CORS_DOMAINS_CACHE_KEY);
+      if (cached) {
+        return new Set(cached);
+      }
+    } catch (error) {
+      console.error('[CORS] Redis cache read failed, falling back to DB:', error);
     }
-  } catch (error) {
-    console.error('[CORS] Redis cache read failed, falling back to DB:', error);
   }
 
   // Cache miss or Redis unavailable — query DB
@@ -97,13 +116,17 @@ async function getCustomDomains(): Promise<Set<string>> {
       .map((t) => t.domain)
       .filter((d): d is string => d !== null);
 
-    // Best-effort cache update (don't lose DB results if Redis SET fails)
-    try {
-      await corsRedisClient.set(CORS_DOMAINS_CACHE_KEY, domains, {
-        ex: CORS_DOMAINS_CACHE_TTL_SECONDS,
-      });
-    } catch {
-      // Redis unavailable — continue without caching
+    // Best-effort cache update (don't lose DB results if Redis SET fails).
+    // AT-PATCH: guarded — this is the second of the two retry cycles that made
+    // every Origin-bearing request cost ~8.6s when Upstash is unconfigured.
+    if (REDIS_CONFIGURED) {
+      try {
+        await corsRedisClient.set(CORS_DOMAINS_CACHE_KEY, domains, {
+          ex: CORS_DOMAINS_CACHE_TTL_SECONDS,
+        });
+      } catch {
+        // Redis unavailable — continue without caching
+      }
     }
 
     return new Set(domains);

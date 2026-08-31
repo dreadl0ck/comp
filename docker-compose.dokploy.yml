@@ -179,29 +179,6 @@ services:
     restart: 'no'
     logging: *default-logging
 
-  # TEMP: times name resolution + connect from a container homed on BOTH
-  # networks, exactly like the app. Remove once confirmed.
-  netprobe:
-    image: curlimages/curl:8.11.1
-    entrypoint: ['sh', '-c']
-    command:
-      - |
-        for host in api api-internal; do
-          echo "=== $$host ==="
-          getent hosts $$host || echo "(no resolution)"
-          for i in 1 2; do
-            curl -sS -o /dev/null -m 20 -w "  try$$i connect=%{time_connect}s total=%{time_total}s code=%{http_code}\n" http://$$host:3333/v1/health || echo "  FAILED"
-          done
-        done
-    depends_on:
-      api:
-        condition: service_healthy
-    restart: 'no'
-    networks:
-      - default
-      - dokploy-network
-    logging: *default-logging
-
   # ---------------------------------------------------------------------------
   # One-shot: schema migrations (prisma migrate deploy — idempotent).
   # ---------------------------------------------------------------------------
