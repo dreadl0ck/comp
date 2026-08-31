@@ -179,30 +179,6 @@ services:
     restart: 'no'
     logging: *default-logging
 
-  # TEMPORARY diagnostic. Reproduces the app's internal server-to-server
-  # session lookup so we can see what the API returns over plain HTTP, which
-  # is not observable from outside (Traefik always adds X-Forwarded-Proto).
-  # Remove once the login path is settled.
-  debug:
-    image: curlimages/curl:8.11.1
-    entrypoint: ['sh', '-c']
-    command:
-      - |
-        U=http://api:3333/api/auth/get-session
-        echo "=== D: cookie + Content-Type: application/json (app sends this on GET) ==="
-        curl -sS -o /tmp/d -w "%{http_code}\n" -H "Cookie: $$DEBUG_COOKIE" -H "Content-Type: application/json" $$U; head -c 200 /tmp/d; echo
-        echo "=== E: + Origin: http://api:3333 (app's fallback origin) ==="
-        curl -sS -o /tmp/e -w "%{http_code}\n" -H "Cookie: $$DEBUG_COOKIE" -H "Content-Type: application/json" -H "Origin: http://api:3333" $$U; head -c 200 /tmp/e; echo
-        echo "=== F: + full Traefik x-forwarded set ==="
-        curl -sS -o /tmp/f -w "%{http_code}\n" -H "Cookie: $$DEBUG_COOKIE" -H "Content-Type: application/json" -H "Origin: http://api:3333" -H "X-Forwarded-Proto: https" -H "X-Forwarded-Host: compliance.amsterdam-technologies.com" -H "X-Forwarded-For: 1.2.3.4" -H "X-Real-Ip: 1.2.3.4" $$U; head -c 200 /tmp/f; echo
-        echo "=== G: hairpin to own public origin ==="
-        curl -sS -o /dev/null -m 10 -w "%{http_code} in %{time_total}s\n" https://compliance.amsterdam-technologies.com/api/health || echo "HAIRPIN FAILED"
-    environment:
-      DEBUG_COOKIE: ${DEBUG_COOKIE:-}
-      DEBUG_COOKIE_NOPREFIX: ${DEBUG_COOKIE_NOPREFIX:-}
-    restart: 'no'
-    logging: *default-logging
-
   # ---------------------------------------------------------------------------
   # One-shot: schema migrations (prisma migrate deploy — idempotent).
   # ---------------------------------------------------------------------------
