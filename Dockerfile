@@ -115,9 +115,40 @@ COPY --from=deps /app/node_modules ./node_modules
 # it explicitly here so `next build` can resolve the generated runtime
 # + types when it imports @prisma/client.
 # AT-PATCH: bun, not node -- the oven/bun base image ships no node binary,
-# so these two RUN steps fail outright as written upstream.
-RUN cd packages/db && bun scripts/combine-schemas.js \
-                   && bun scripts/generate-prisma-client-js.js
+# so these two RUN steps fail outright as written upstream. (`bun run <script>`
+# works because bun shims `node` for package.json scripts; a bare RUN does not
+# get that shim, which is what hid this.)
+# AT-PATCH: full `bun run build` for packages/db, mirroring
+# apps/api/Dockerfile.multistage, not just the two schema scripts.
+# packages/db resolves through dist/, and other packages import it
+# (packages/company/dist/index.mjs does `import ... from "@trycompai/db"`), so
+# without tsc output the portal build fails with
+#   ./packages/company/dist/index.mjs:2:1 Can't resolve '@trycompai/db'
+# db's build runs generate-prisma-client-js, tsc and build-dist-schema, so it
+# also produces dist/schema.prisma.
+RUN cd packages/db && bun run build
+
+# AT-PATCH: build the workspace packages the app imports.
+# Every @trycompai/* package except utils resolves through dist/, and nothing
+# in this stage compiled them, so the Next build failed with
+#   Module not found: Can't resolve '@trycompai/auth'
+# apps/api/Dockerfile.multistage already does this; the root Dockerfile only
+# ever built packages/db.
+RUN cd packages/auth && bun run build \
+    && cd ../email && bun run build \
+    && cd ../company && bun run build \
+    && cd ../billing && bun run build \
+    && cd ../integration-platform && bun run build \
+    && cd ../analytics && bun run build \
+    && cd ../kv && bun run build \
+    && cd ../ui && bun run build
+
+# AT-PATCH: same model-file copy as portal-builder. apps/app/build:docker also
+# runs `prisma generate --schema=prisma/schema`, and apps/app/prisma/schema/
+# likewise ships only the generator+datasource stub. Upstream did no copy at
+# all here, so the app would generate a model-less client too.
+RUN find /app/packages/db/prisma/schema -name '*.prisma' ! -name 'schema.prisma' \
+    -exec cp {} /app/apps/app/prisma/schema/ \;
 
 # Ensure Next build has required public env at build-time
 ARG NEXT_PUBLIC_BETTER_AUTH_URL
@@ -177,9 +208,31 @@ COPY apps/portal ./apps/portal
 COPY --from=deps /app/node_modules ./node_modules
 
 # Pre-combine schemas for portal build
-# AT-PATCH: bun, not node (see app-builder).
-RUN cd packages/db && bun scripts/combine-schemas.js
-RUN cp packages/db/dist/schema.prisma apps/portal/prisma/schema.prisma
+# AT-PATCH: full build (see app-builder).
+RUN cd packages/db && bun run build
+
+# AT-PATCH: copy the Prisma MODEL files into apps/portal/prisma/schema/.
+# apps/portal's build:docker runs `prisma generate --schema=prisma/schema`,
+# i.e. against the DIRECTORY, which ships containing only schema.prisma (the
+# generator + datasource stub). Upstream instead copied the combined schema to
+# prisma/schema.prisma -- a file beside that directory, which generate never
+# reads. The result is a client with no models, and the build dies with
+#   Type error: Property 'policy' does not exist on type 'PrismaClient'
+# This mirrors apps/api/Dockerfile.multistage and the repo's own db:getschema.
+RUN find /app/packages/db/prisma/schema -name '*.prisma' ! -name 'schema.prisma' \
+    -exec cp {} /app/apps/portal/prisma/schema/ \;
+
+# AT-PATCH: same missing workspace package builds as app-builder. The portal
+# imports @trycompai/auth and @trycompai/company directly
+# (src/app/lib/auth-client.ts, src/utils/portal-access.ts).
+RUN cd packages/auth && bun run build \
+    && cd ../email && bun run build \
+    && cd ../company && bun run build \
+    && cd ../billing && bun run build \
+    && cd ../integration-platform && bun run build \
+    && cd ../analytics && bun run build \
+    && cd ../kv && bun run build \
+    && cd ../ui && bun run build
 
 # Ensure Next build has required public env at build-time
 ARG NEXT_PUBLIC_BETTER_AUTH_URL
