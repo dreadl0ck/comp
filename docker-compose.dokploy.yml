@@ -179,6 +179,29 @@ services:
     restart: 'no'
     logging: *default-logging
 
+  # TEMPORARY diagnostic. Reproduces the app's internal server-to-server
+  # session lookup so we can see what the API returns over plain HTTP, which
+  # is not observable from outside (Traefik always adds X-Forwarded-Proto).
+  # Remove once the login path is settled.
+  debug:
+    image: curlimages/curl:8.11.1
+    entrypoint: ['sh', '-c']
+    command:
+      - |
+        echo "=== A: cookie only (what a bare internal fetch sends) ==="
+        curl -sS -i -H "Cookie: $$DEBUG_COOKIE" http://api:3333/api/auth/get-session | head -25
+        echo ""
+        echo "=== B: cookie + X-Forwarded-Proto: https ==="
+        curl -sS -i -H "Cookie: $$DEBUG_COOKIE" -H "X-Forwarded-Proto: https" http://api:3333/api/auth/get-session | head -25
+        echo ""
+        echo "=== C: unprefixed cookie name ==="
+        curl -sS -i -H "Cookie: $$DEBUG_COOKIE_NOPREFIX" http://api:3333/api/auth/get-session | head -25
+    environment:
+      DEBUG_COOKIE: ${DEBUG_COOKIE:-}
+      DEBUG_COOKIE_NOPREFIX: ${DEBUG_COOKIE_NOPREFIX:-}
+    restart: 'no'
+    logging: *default-logging
+
   # ---------------------------------------------------------------------------
   # One-shot: schema migrations (prisma migrate deploy — idempotent).
   # ---------------------------------------------------------------------------
