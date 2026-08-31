@@ -36,7 +36,11 @@ WORKDIR /app
 COPY packages/db/prisma ./packages/db/prisma
 
 # Create minimal package.json for Prisma runtime (also used by seeder)
-RUN echo '{"name":"migrator","type":"module","dependencies":{"prisma":"^6.14.0","@prisma/client":"^6.14.0","@trycompai/db":"^1.3.4","zod":"^3.25.7"}}' > package.json
+# AT-PATCH: added @prisma/adapter-pg. prisma/seed/seed.ts does
+#   `import { PrismaPg } from '@prisma/adapter-pg'` but upstream never declares
+#   it here, so the seeder only works when bun happens to hoist it as a
+#   transitive dep. Declaring it makes the seed stage deterministic.
+RUN echo '{"name":"migrator","type":"module","dependencies":{"prisma":"^6.14.0","@prisma/client":"^6.14.0","@prisma/adapter-pg":"^6.14.0","@trycompai/db":"^1.3.4","zod":"^3.25.7"}}' > package.json
 
 # Install ONLY Prisma dependencies
 RUN bun install
@@ -78,7 +82,15 @@ ARG NEXT_PUBLIC_POSTHOG_KEY
 ARG NEXT_PUBLIC_POSTHOG_HOST
 ARG NEXT_PUBLIC_IS_DUB_ENABLED
 ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_BETTER_AUTH_URL=$NEXT_PUBLIC_BETTER_AUTH_URL \
+# AT-PATCH: NEXT_PUBLIC_SELF_HOSTED must be a BUILD ARG, not a runtime env.
+#   SELF_HOSTING.md tells you to set it in apps/app/.env, but it is read from
+#   server components (setup/actions/create-organization-minimal.ts and
+#   upgrade/[orgId]/page.tsx) and Next inlines NEXT_PUBLIC_* at build time.
+#   Set only at runtime it evaluates false and org creation drops into the
+#   paid/booking flow instead of auto-approving.
+ARG NEXT_PUBLIC_SELF_HOSTED
+ENV NEXT_PUBLIC_SELF_HOSTED=$NEXT_PUBLIC_SELF_HOSTED \
+    NEXT_PUBLIC_BETTER_AUTH_URL=$NEXT_PUBLIC_BETTER_AUTH_URL \
     NEXT_PUBLIC_PORTAL_URL=$NEXT_PUBLIC_PORTAL_URL \
     NEXT_PUBLIC_POSTHOG_KEY=$NEXT_PUBLIC_POSTHOG_KEY \
     NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST \

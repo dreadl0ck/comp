@@ -1,0 +1,254 @@
+# =============================================================================
+# Comp AI — Amsterdam Technologies self-hosted deployment (Dokploy)
+# =============================================================================
+# Deliberately a SEPARATE file from upstream docker-compose.yml so that
+# rebasing onto new upstream tags stays a trivial operation. Only the
+# Dockerfile carries in-place patches (both marked AT-PATCH).
+#
+# Origin design: ONE public origin, per workstream W13.
+#   https://compliance.amsterdam-technologies.com/     -> app   :3000
+#   https://compliance.amsterdam-technologies.com/v1   -> api   :3333
+# The API is what @trycompai/mcp-server talks to; its SDK appends /v1 to the
+# base URL, and apps/app builds its own API calls the same way. So a path
+# route on the shared host serves both without inventing an api.* subdomain.
+#
+# portal is built and run but intentionally has NO domain attached.
+#
+# Required variables, supplied by Dokploy's Environment field (never committed):
+#   POSTGRES_PASSWORD      postgres superuser password
+#   DATABASE_URL           postgresql://comp:<pw>@postgres:5432/comp?sslmode=disable
+#                          sslmode=disable is correct here: postgres is a
+#                          compose service on a private network and serves no
+#                          TLS. Comp's docs say sslmode=require, which fails.
+#   AUTH_SECRET            openssl rand -base64 32
+#   SECRET_KEY             openssl rand -base64 32
+#   REVALIDATION_SECRET    openssl rand -base64 32
+#   SERVICE_TOKEN_PORTAL   openssl rand -base64 32
+#   SERVICE_TOKEN_TRIGGER  openssl rand -base64 32
+#   PUBLIC_URL             https://compliance.amsterdam-technologies.com
+#   PUBLIC_PORTAL_URL      portal origin (no domain attached yet)
+# Optional:
+#   ANTHROPIC_API_KEY      reuse the estate key; Comp supports Anthropic
+#   TRIGGER_SECRET_KEY     leave unset to run the no-background-jobs probe
+# =============================================================================
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+    compress: 'true'
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+  logging: *default-logging
+
+services:
+  # ---------------------------------------------------------------------------
+  # Postgres. Embedded in the stack rather than a Dokploy-managed database
+  # because Dokploy's DB-backup scheduler cannot see compose-embedded services
+  # (the same W1.4 shape as Umami). Backups are therefore a dokploy-server
+  # schedule, not native — see ../server/schedules/.
+  # ---------------------------------------------------------------------------
+  postgres:
+    <<: *hardening
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: comp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: comp
+    volumes:
+      - comp-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U comp -d comp']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    mem_limit: 2g
+
+  # ---------------------------------------------------------------------------
+  # One-shot: schema migrations (prisma migrate deploy — idempotent).
+  # ---------------------------------------------------------------------------
+  migrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # One-shot: reference data — 23 frameworks (ISO 27001:2022 and GDPR among
+  # them), 204 control templates, 1334 requirements, 52 policy templates.
+  # Upsert-based, so safe to re-run.
+  #
+  # AT-PATCH: upstream runs `seed.js`; only `seed.ts` exists in the tree
+  # (packages/db's own script is `bun prisma/seed/seed.ts`). Upstream's
+  # command fails with module-not-found, so no framework data ever lands.
+  # ---------------------------------------------------------------------------
+  seeder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    command: >
+      sh -lc "bunx prisma generate --schema=node_modules/@trycompai/db/dist/schema.prisma
+      && bun packages/db/prisma/seed/seed.ts"
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    restart: 'no'
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Main application.
+  # ---------------------------------------------------------------------------
+  app:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+      args:
+        # All NEXT_PUBLIC_* are INLINED AT BUILD TIME by Next. Changing any of
+        # these is a rebuild, never a restart.
+        NEXT_PUBLIC_BETTER_AUTH_URL: ${PUBLIC_URL}
+        NEXT_PUBLIC_PORTAL_URL: ${PUBLIC_PORTAL_URL}
+        NEXT_PUBLIC_API_URL: ${PUBLIC_URL}
+        NEXT_PUBLIC_SELF_HOSTED: 'true'
+    environment:
+      # Next standalone honours HOSTNAME; pin it so Traefik can reach the
+      # container over dokploy-network rather than loopback only.
+      HOSTNAME: 0.0.0.0
+      PORT: '3000'
+      DATABASE_URL: ${DATABASE_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+      SECRET_KEY: ${SECRET_KEY}
+      REVALIDATION_SECRET: ${REVALIDATION_SECRET}
+      BETTER_AUTH_URL: ${PUBLIC_URL}
+      BETTER_AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_TRUSTED_ORIGINS: ${PUBLIC_URL},${PUBLIC_PORTAL_URL}
+      # Runtime twin of the build arg; apps/api reads this plain name.
+      SELF_HOSTED: 'true'
+      NEXT_PUBLIC_SELF_HOSTED: 'true'
+      NEXT_PUBLIC_API_URL: ${PUBLIC_URL}
+      NEXT_PUBLIC_PORTAL_URL: ${PUBLIC_PORTAL_URL}
+      # Probe value. Comp marks TRIGGER_SECRET_KEY required-minimal; we are
+      # deliberately finding out which features actually enqueue tasks rather
+      # than onboarding a US processor up front.
+      TRIGGER_SECRET_KEY: ${TRIGGER_SECRET_KEY:-tr_selfhost_probe_unset}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SERVICE_TOKEN_PORTAL: ${SERVICE_TOKEN_PORTAL}
+      SERVICE_TOKEN_TRIGGER: ${SERVICE_TOKEN_TRIGGER}
+      # Deliberately unset: RESEND_*, POSTHOG, DUB, FIRECRAWL, UPSTASH_*.
+      # PostHog in particular would contradict the no-third-party-tracker
+      # claim W8 put into the published privacy policies.
+    # AT-PATCH: upstream healthchecks with `curl`, which does not exist in
+    # node:22-alpine and is never installed. The check fails forever, the
+    # container is marked unhealthy, Traefik's docker provider skips unhealthy
+    # containers, and the host serves a 404 with correct routers. Use wget
+    # (present via busybox) and 127.0.0.1 — alpine resolves `localhost` to ::1
+    # first and the Next standalone server binds IPv4.
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1:3000/api/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      seeder:
+        condition: service_completed_successfully
+    mem_limit: 3g
+    networks:
+      - default
+      - dokploy-network
+
+  # ---------------------------------------------------------------------------
+  # NestJS API. Required for @trycompai/mcp-server, and for several app
+  # features (SoA auto-fill, questionnaire, policy tooling) that call /v1.
+  # Not part of upstream's docker-compose.yml at all.
+  # ---------------------------------------------------------------------------
+  api:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.multistage
+      target: production
+    environment:
+      NODE_ENV: production
+      PORT: '3333'
+      DATABASE_URL: ${DATABASE_URL}
+      BASE_URL: ${PUBLIC_URL}
+      BETTER_AUTH_URL: ${PUBLIC_URL}
+      BETTER_AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_SECRET: ${AUTH_SECRET}
+      SECRET_KEY: ${SECRET_KEY}
+      NEXT_PUBLIC_APP_URL: ${PUBLIC_URL}
+      AUTH_TRUSTED_ORIGINS: ${PUBLIC_URL},${PUBLIC_PORTAL_URL}
+      SELF_HOSTED: 'true'
+      SERVICE_TOKEN_PORTAL: ${SERVICE_TOKEN_PORTAL}
+      SERVICE_TOKEN_TRIGGER: ${SERVICE_TOKEN_TRIGGER}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TRIGGER_SECRET_KEY: ${TRIGGER_SECRET_KEY:-tr_selfhost_probe_unset}
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1:3333/v1/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      seeder:
+        condition: service_completed_successfully
+    mem_limit: 2g
+    networks:
+      - default
+      - dokploy-network
+
+  # ---------------------------------------------------------------------------
+  # Employee portal. Built and running, but no domain is attached — scope
+  # decision: internal app only. Give it a domain when staff need to accept
+  # policies, which also means solving email (Comp has no SMTP path).
+  # ---------------------------------------------------------------------------
+  portal:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: portal
+      args:
+        NEXT_PUBLIC_BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: '3000'
+      DATABASE_URL: ${DATABASE_URL}
+      BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
+      BETTER_AUTH_SECRET: ${AUTH_SECRET}
+      NEXT_PUBLIC_BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
+      SERVICE_TOKEN_PORTAL: ${SERVICE_TOKEN_PORTAL}
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1:3000/ || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      seeder:
+        condition: service_completed_successfully
+    mem_limit: 2g
+
+volumes:
+  comp-postgres:
+
+networks:
+  dokploy-network:
+    external: true
