@@ -48,26 +48,52 @@ FROM oven/bun:1.2.8 AS migrator
 
 WORKDIR /app
 
-# Copy local Prisma schema and migrations from workspace
+# Copy local Prisma schema, migrations and the schema-combining scripts.
+# AT-PATCH: packages/db/src is required too -- seed.ts ends by importing
+# ../../src/scripts/backfill-framework-versions, so without it the seed runs
+# all the way through the framework data and then dies on the final backfill,
+# leaving a half-seeded database. It is 40K and pulls in no new dependencies.
 COPY packages/db/prisma ./packages/db/prisma
+COPY packages/db/scripts ./packages/db/scripts
+COPY packages/db/src ./packages/db/src
 
-# Create minimal package.json for Prisma runtime (also used by seeder)
-# AT-PATCH: added @prisma/adapter-pg. prisma/seed/seed.ts does
-#   `import { PrismaPg } from '@prisma/adapter-pg'` but upstream never declares
-#   it here, so the seeder only works when bun happens to hoist it as a
-#   transitive dep. Declaring it makes the seed stage deterministic.
-RUN echo '{"name":"migrator","type":"module","dependencies":{"prisma":"^6.14.0","@prisma/client":"^6.14.0","@prisma/adapter-pg":"^6.14.0","@trycompai/db":"^1.3.4","zod":"^3.25.7"}}' > package.json
+# AT-PATCH: two changes to the dependency set.
+#   - added @prisma/adapter-pg, which prisma/seed/seed.ts imports but upstream
+#     never declared, leaving the seed reliant on bun hoisting it transitively.
+#   - dropped @trycompai/db. See the schema note below.
+RUN echo '{"name":"migrator","type":"module","dependencies":{"prisma":"^6.14.0","@prisma/client":"^6.14.0","@prisma/adapter-pg":"^6.14.0","zod":"^3.25.7"}}' > package.json
 
 # Install ONLY Prisma dependencies
 RUN bun install
 
-# Ensure Prisma can find migrations relative to the published schema path
-# We copy the local migrations into the published package's dist directory
-RUN cp -R packages/db/prisma/migrations node_modules/@trycompai/db/dist/
+# AT-PATCH: a standalone datasource schema for `migrate deploy`.
+#   The base prisma/schema.prisma declares no `url` because it drives the new
+#   driver-adapter generator, where the connection is supplied at runtime by
+#   PrismaPg. The migrate CLI still needs one, so upstream leaned on the
+#   published @trycompai/db dist schema. `migrate deploy` only replays raw SQL
+#   and never needs the models, so a minimal datasource is sufficient and does
+#   not couple us to the published package's schema version.
+RUN mkdir -p /app/migrate \
+    && printf 'datasource db {\n  provider = "postgresql"\n  url      = env("DATABASE_URL")\n}\n' > /app/migrate/schema.prisma \
+    && cp -R packages/db/prisma/migrations /app/migrate/migrations
 
-# Run migrations against the combined schema published by @trycompai/db
-RUN echo "Running migrations against @trycompai/db combined schema"
-CMD ["bunx", "prisma", "migrate", "deploy", "--schema=node_modules/@trycompai/db/dist/schema.prisma"]
+# AT-PATCH: generate the client from the LOCAL prisma/schema/ tree, at build
+# time, using the repo's own script.
+#
+# Upstream applied migrations from the local tree but generated the client
+# from the published @trycompai/db schema. Those drift: at v3.111.1 the local
+# schema has FrameworkEditorControlTemplate.documentTypes
+# (prisma/schema/framework-editor.prisma:207) and @trycompai/db@1.3.22 does
+# not, so the column exists in the database, the client does not know about
+# it, and the seed dies with `Unknown argument 'documentTypes'`. Upstream's
+# invocation also emitted the client into a nested
+# node_modules/@trycompai/db/node_modules/.prisma that seed.ts's bare
+# `import from '@prisma/client'` could never resolve.
+#
+# Run with bun, not node: oven/bun ships no node binary.
+RUN cd packages/db && bun scripts/generate-prisma-client-js.js
+
+CMD ["bunx", "prisma", "migrate", "deploy", "--schema=/app/migrate/schema.prisma"]
 
 # =============================================================================
 # STAGE 3: App Builder
@@ -88,8 +114,10 @@ COPY --from=deps /app/node_modules ./node_modules
 # `--ignore-scripts` so packages/db's postinstall was skipped; we run
 # it explicitly here so `next build` can resolve the generated runtime
 # + types when it imports @prisma/client.
-RUN cd packages/db && node scripts/combine-schemas.js \
-                   && node scripts/generate-prisma-client-js.js
+# AT-PATCH: bun, not node -- the oven/bun base image ships no node binary,
+# so these two RUN steps fail outright as written upstream.
+RUN cd packages/db && bun scripts/combine-schemas.js \
+                   && bun scripts/generate-prisma-client-js.js
 
 # Ensure Next build has required public env at build-time
 ARG NEXT_PUBLIC_BETTER_AUTH_URL
@@ -149,7 +177,8 @@ COPY apps/portal ./apps/portal
 COPY --from=deps /app/node_modules ./node_modules
 
 # Pre-combine schemas for portal build
-RUN cd packages/db && node scripts/combine-schemas.js
+# AT-PATCH: bun, not node (see app-builder).
+RUN cd packages/db && bun scripts/combine-schemas.js
 RUN cp packages/db/dist/schema.prisma apps/portal/prisma/schema.prisma
 
 # Ensure Next build has required public env at build-time

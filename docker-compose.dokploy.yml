@@ -17,9 +17,20 @@
 # Required variables, supplied by Dokploy's Environment field (never committed):
 #   POSTGRES_PASSWORD      postgres superuser password
 #   DATABASE_URL           postgresql://comp:<pw>@postgres:5432/comp?sslmode=disable
-#                          sslmode=disable is correct here: postgres is a
-#                          compose service on a private network and serves no
-#                          TLS. Comp's docs say sslmode=require, which fails.
+#                          sslmode=disable is deliberate and load-bearing.
+#                          Three consumers read this one string differently:
+#                            - prisma migrate CLI: honours sslmode.
+#                            - prisma/seed/seed.ts: builds its own PrismaPg
+#                              from the raw string, and verifies the cert, so
+#                              sslmode=require fails on our self-signed one
+#                              (P1011).
+#                            - packages/db/src/client.ts: STRIPS sslmode and
+#                              forces TLS for any non-localhost host.
+#                          Postgres serves TLS while still accepting plaintext,
+#                          so disable is the only value satisfying all three.
+#                          Net effect: the long-lived app/api/portal
+#                          connections are TLS; the two one-shot jobs are
+#                          plaintext on a private docker network.
 #   AUTH_SECRET            openssl rand -base64 32
 #   SECRET_KEY             openssl rand -base64 32
 #   REVALIDATION_SECRET    openssl rand -base64 32
@@ -52,15 +63,47 @@ services:
   # (the same W1.4 shape as Umami). Backups are therefore a dokploy-server
   # schedule, not native — see ../server/schedules/.
   # ---------------------------------------------------------------------------
+  # TLS is NOT optional here, and not merely good practice.
+  # packages/db/src/ssl-config.ts resolveSslConfig() strips sslmode from the
+  # connection string and forces TLS for every host that is not literally
+  # localhost/127.0.0.1/::1. Our host is the compose service name `postgres`,
+  # so a plaintext server is rejected with
+  #     Error opening a TLS connection: The server does not support SSL
+  # Comp's docs saying "PostgreSQL with SSL" describe an enforced constraint,
+  # not a recommendation. Serving TLS satisfies it without patching the
+  # library, and encrypts the link carrying the entire compliance record --
+  # worth having while docs/ENCRYPTION.md still reports no encryption at rest.
+  #
+  # Debian postgres:17, not -alpine: the alpine image has no openssl CLI.
+  # The cert is self-signed and regenerated per boot (it lives outside the
+  # data volume); clients set PRISMA_ALLOW_INSECURE_TLS=1 so the chain is not
+  # verified. That is encryption without authentication -- acceptable only
+  # because both ends sit on a private docker network.
   postgres:
     <<: *hardening
-    image: postgres:17-alpine
+    image: postgres:17
     environment:
       POSTGRES_USER: comp
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: comp
     volumes:
       - comp-postgres:/var/lib/postgresql/data
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        CERTDIR=/etc/postgres-certs
+        mkdir -p "$$CERTDIR"
+        openssl req -new -x509 -days 3650 -nodes -text \
+          -out "$$CERTDIR/server.crt" -keyout "$$CERTDIR/server.key" \
+          -subj "/CN=postgres" >/dev/null 2>&1
+        chmod 600 "$$CERTDIR/server.key"
+        chown postgres:postgres "$$CERTDIR/server.key" "$$CERTDIR/server.crt"
+        exec docker-entrypoint.sh postgres \
+          -c ssl=on \
+          -c ssl_cert_file="$$CERTDIR/server.crt" \
+          -c ssl_key_file="$$CERTDIR/server.key"
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U comp -d comp']
       interval: 10s
@@ -79,6 +122,7 @@ services:
       target: migrator
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      PRISMA_ALLOW_INSECURE_TLS: '1'
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,9 +145,9 @@ services:
       target: migrator
     environment:
       DATABASE_URL: ${DATABASE_URL}
-    command: >
-      sh -lc "bunx prisma generate --schema=node_modules/@trycompai/db/dist/schema.prisma
-      && bun packages/db/prisma/seed/seed.ts"
+    # The Prisma client is generated from the local schema at image build time
+    # (see Dockerfile migrator stage), so the seed just runs.
+    command: ['bun', 'packages/db/prisma/seed/seed.ts']
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -132,6 +176,7 @@ services:
       HOSTNAME: 0.0.0.0
       PORT: '3000'
       DATABASE_URL: ${DATABASE_URL}
+      PRISMA_ALLOW_INSECURE_TLS: '1'
       AUTH_SECRET: ${AUTH_SECRET}
       SECRET_KEY: ${SECRET_KEY}
       REVALIDATION_SECRET: ${REVALIDATION_SECRET}
@@ -188,6 +233,7 @@ services:
       NODE_ENV: production
       PORT: '3333'
       DATABASE_URL: ${DATABASE_URL}
+      PRISMA_ALLOW_INSECURE_TLS: '1'
       BASE_URL: ${PUBLIC_URL}
       BETTER_AUTH_URL: ${PUBLIC_URL}
       BETTER_AUTH_SECRET: ${AUTH_SECRET}
@@ -231,6 +277,7 @@ services:
       HOSTNAME: 0.0.0.0
       PORT: '3000'
       DATABASE_URL: ${DATABASE_URL}
+      PRISMA_ALLOW_INSECURE_TLS: '1'
       BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
       BETTER_AUTH_SECRET: ${AUTH_SECRET}
       NEXT_PUBLIC_BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}

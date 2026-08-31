@@ -24,6 +24,17 @@ try {
   }
 
   // Write prisma-client-js generator schema
+  //
+  // AT-PATCH: the datasource needs a `url`. Prisma 6.19's generate runs full
+  // schema validation and fails with P1012 "Argument url is missing in data
+  // source block db" without one. The base prisma/schema.prisma legitimately
+  // omits it (the driver-adapter generator takes the connection at runtime
+  // from PrismaPg), and this script deliberately hides prisma.config.ts, so
+  // nothing supplies it here.
+  //
+  // A literal placeholder rather than env("DATABASE_URL"): generate never
+  // opens a connection, and a literal cannot fail at build time in an image
+  // layer where DATABASE_URL is legitimately absent.
   fs.writeFileSync(path.join(tempDir, 'schema.prisma'), `generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
@@ -31,6 +42,7 @@ try {
 
 datasource db {
   provider   = "postgresql"
+  url        = "postgresql://placeholder/placeholder"
   extensions = [pgcrypto]
 }
 `);
