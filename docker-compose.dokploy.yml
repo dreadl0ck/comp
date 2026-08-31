@@ -179,6 +179,29 @@ services:
     restart: 'no'
     logging: *default-logging
 
+  # TEMP: times name resolution + connect from a container homed on BOTH
+  # networks, exactly like the app. Remove once confirmed.
+  netprobe:
+    image: curlimages/curl:8.11.1
+    entrypoint: ['sh', '-c']
+    command:
+      - |
+        for host in api api-internal; do
+          echo "=== $$host ==="
+          getent hosts $$host || echo "(no resolution)"
+          for i in 1 2; do
+            curl -sS -o /dev/null -m 20 -w "  try$$i connect=%{time_connect}s total=%{time_total}s code=%{http_code}\n" http://$$host:3333/v1/health || echo "  FAILED"
+          done
+        done
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: 'no'
+    networks:
+      - default
+      - dokploy-network
+    logging: *default-logging
+
   # ---------------------------------------------------------------------------
   # One-shot: schema migrations (prisma migrate deploy — idempotent).
   # ---------------------------------------------------------------------------
@@ -306,7 +329,7 @@ services:
       # simply hangs. /auth then never renders while /api/health is fine,
       # because only the former calls the API. Keep SSR auth traffic on the
       # compose network.
-      BACKEND_API_URL: http://api:3333
+      BACKEND_API_URL: http://api-internal:3333
       # Probe value. Comp marks TRIGGER_SECRET_KEY required-minimal; we are
       # deliberately finding out which features actually enqueue tasks rather
       # than onboarding a US processor up front.
@@ -442,8 +465,16 @@ services:
         condition: service_completed_successfully
     mem_limit: 2g
     networks:
-      - default
-      - dokploy-network
+      # AT: `api-internal` is an alias on the BRIDGE network only. The service
+      # name `api` resolves on BOTH default and dokploy-network, so Docker DNS
+      # hands back two addresses; undici tries them in order and stalls ~9s on
+      # the overlay one before falling back. Every server-rendered page pays
+      # that twice (session + /v1/auth/me), which is the "hang". Resolving a
+      # single-homed alias removes the ambiguity.
+      default:
+        aliases:
+          - api-internal
+      dokploy-network:
 
   # ---------------------------------------------------------------------------
   # Employee portal. Built and running, but no domain is attached — scope
@@ -485,7 +516,7 @@ services:
       # simply hangs. /auth then never renders while /api/health is fine,
       # because only the former calls the API. Keep SSR auth traffic on the
       # compose network.
-      BACKEND_API_URL: http://api:3333
+      BACKEND_API_URL: http://api-internal:3333
       SERVICE_TOKEN_PORTAL: ${SERVICE_TOKEN_PORTAL}
       # Placeholder. apps/portal/src/env.mjs declares RESEND_API_KEY as a plain
       # z.string() with no .optional(), so the process refuses to boot without
