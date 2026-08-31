@@ -233,8 +233,20 @@ services:
       # container over dokploy-network rather than loopback only.
       HOSTNAME: 0.0.0.0
       PORT: '3000'
+      # Node sizes its heap from the cgroup and settled on ~1.5 GB, where the
+      # app died with "Ineffective mark-compacts near heap limit" while
+      # rendering /auth. Give it real headroom under the raised mem_limit.
+      NODE_OPTIONS: --max-old-space-size=3072
+      # packages/kv builds an Upstash Redis client from UPSTASH_REDIS_REST_URL
+      # and _TOKEN. Unset, it logs "The 'url' property is missing or undefined"
+      # and then fails on use. packages/kv/src/index.ts has a first-class
+      # in-memory fallback behind MOCK_REDIS, which is the right trade here:
+      # this KV holds rate-limit counters and cache, not durable state, and the
+      # alternative is either an Upstash account (a new US processor) or a
+      # Redis plus an Upstash-compatible REST shim. It IS per-process and lost
+      # on restart -- acceptable for a single-instance internal tool.
+      MOCK_REDIS: 'true'
       DATABASE_URL: ${DATABASE_URL}
-      PRISMA_ALLOW_INSECURE_TLS: '1'
       AUTH_SECRET: ${AUTH_SECRET}
       SECRET_KEY: ${SECRET_KEY}
       REVALIDATION_SECRET: ${REVALIDATION_SECRET}
@@ -290,7 +302,7 @@ services:
         condition: service_completed_successfully
       minio-init:
         condition: service_completed_successfully
-    mem_limit: 3g
+    mem_limit: 4g
     networks:
       - default
       - dokploy-network
@@ -309,6 +321,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: '3333'
+      MOCK_REDIS: 'true'
       DATABASE_URL: ${DATABASE_URL}
       PRISMA_ALLOW_INSECURE_TLS: '1'
       BASE_URL: ${PUBLIC_URL}
@@ -384,6 +397,8 @@ services:
     environment:
       HOSTNAME: 0.0.0.0
       PORT: '3000'
+      NODE_OPTIONS: --max-old-space-size=2048
+      MOCK_REDIS: 'true'
       DATABASE_URL: ${DATABASE_URL}
       PRISMA_ALLOW_INSECURE_TLS: '1'
       BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
