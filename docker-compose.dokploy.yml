@@ -264,6 +264,15 @@ services:
       NEXT_PUBLIC_SELF_HOSTED: 'true'
       NEXT_PUBLIC_API_URL: ${PUBLIC_URL}
       NEXT_PUBLIC_PORTAL_URL: ${PUBLIC_PORTAL_URL}
+      # Server-to-server base URL for auth. apps/app/src/utils/auth.ts and the
+      # portal equivalents resolve BACKEND_API_URL -> NEXT_PUBLIC_API_URL ->
+      # localhost:3333. Without this they fall through to NEXT_PUBLIC_API_URL,
+      # which is the PUBLIC origin, so the container fetches its own public
+      # hostname and hairpins back in through Traefik -- which on this host
+      # simply hangs. /auth then never renders while /api/health is fine,
+      # because only the former calls the API. Keep SSR auth traffic on the
+      # compose network.
+      BACKEND_API_URL: http://api:3333
       # Probe value. Comp marks TRIGGER_SECRET_KEY required-minimal; we are
       # deliberately finding out which features actually enqueue tasks rather
       # than onboarding a US processor up front.
@@ -410,6 +419,16 @@ services:
       BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
       BETTER_AUTH_SECRET: ${AUTH_SECRET}
       NEXT_PUBLIC_BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
+      NEXT_PUBLIC_API_URL: ${PUBLIC_URL}
+      # Server-to-server base URL for auth. apps/app/src/utils/auth.ts and the
+      # portal equivalents resolve BACKEND_API_URL -> NEXT_PUBLIC_API_URL ->
+      # localhost:3333. Without this they fall through to NEXT_PUBLIC_API_URL,
+      # which is the PUBLIC origin, so the container fetches its own public
+      # hostname and hairpins back in through Traefik -- which on this host
+      # simply hangs. /auth then never renders while /api/health is fine,
+      # because only the former calls the API. Keep SSR auth traffic on the
+      # compose network.
+      BACKEND_API_URL: http://api:3333
       SERVICE_TOKEN_PORTAL: ${SERVICE_TOKEN_PORTAL}
       # Placeholder. apps/portal/src/env.mjs declares RESEND_API_KEY as a plain
       # z.string() with no .optional(), so the process refuses to boot without
