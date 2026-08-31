@@ -353,6 +353,13 @@ services:
       # mc_dev_dummy_api_key is the value Comp's own apps/api/.env.example
       # ships for it.
       MACED_API_KEY: ${MACED_API_KEY:-mc_dev_dummy_api_key}
+      # Bootstrap only. See the AT-PATCH note in apps/api/src/auth/
+      # auth.server.ts: magic link and OTP are the only sign-in methods
+      # (emailAndPassword is disabled there) and both need email, which this
+      # deployment does not have. Writes the magic-link URL to the container
+      # log so a first sign-in is possible. Set to 0 once OAuth or email is
+      # configured.
+      LOG_MAGIC_LINKS: ${LOG_MAGIC_LINKS:-1}
       # Read at call time, not boot, but required by the integration credential
       # vault and the secrets helpers. Passed through scrypt, so any strong
       # string works. Losing it makes stored integration credentials

@@ -491,15 +491,42 @@ export const auth = betterAuth({
         // and includes the callbackURL from the client's sign-in request.
         // Flow: user clicks link → API verifies token & sets session cookie
         // → API redirects (302) to callbackURL (the app).
-        if (process.env.NODE_ENV === 'development') {
+        // AT-PATCH: LOG_MAGIC_LINKS is a deliberate bootstrap escape hatch.
+        //
+        // This deployment sends no email (Comp has no SMTP path; Resend is
+        // hard-wired and we did not want another US processor) and has no
+        // OAuth provider configured yet. emailAndPassword is disabled just
+        // below, so magic link and OTP are the ONLY ways in -- and both need
+        // working email. That is a locked door.
+        //
+        // With this set, the URL is written to the container log so an
+        // operator with server access can complete a first sign-in. It grants
+        // nothing to anyone who cannot already read container logs, i.e.
+        // nobody who is not already root on the host.
+        //
+        // TURN THIS OFF once a real login path exists (an OAuth provider, or
+        // email delivery). Leaving it on means every magic link for every
+        // user is sitting in the log.
+        if (process.env.NODE_ENV === 'development' || process.env.LOG_MAGIC_LINKS === '1') {
           console.log('[Auth] Sending magic link to:', email);
           console.log('[Auth] Magic link URL:', url);
         }
-        await triggerEmail({
-          to: email,
-          subject: 'Login to Comp AI',
-          react: MagicLinkEmail({ email, url }),
-        });
+        try {
+          await triggerEmail({
+            to: email,
+            subject: 'Login to Comp AI',
+            react: MagicLinkEmail({ email, url }),
+          });
+        } catch (err) {
+          // AT-PATCH: with no real email provider the send always throws. The
+          // verification token is already persisted at this point, so the
+          // logged URL is valid; swallowing here keeps the sign-in request
+          // from returning an error for a link that actually works. Only
+          // swallowed while the bootstrap flag is on -- otherwise a genuine
+          // delivery failure must still surface.
+          if (process.env.LOG_MAGIC_LINKS !== '1') throw err;
+          console.warn('[Auth] magic link email send failed (LOG_MAGIC_LINKS on):', err);
+        }
       },
     }),
     emailOTP({
