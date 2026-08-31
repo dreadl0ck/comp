@@ -145,6 +145,13 @@ services:
       target: migrator
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      # Required, not optional, for this service specifically: seed.ts finishes
+      # by calling backfill-framework-versions, which goes through
+      # packages/db/src/client.ts -> resolveSslConfig, which forces verified
+      # TLS for any non-localhost host. Against our self-signed postgres cert
+      # that fails P1011 "self signed certificate" AFTER all the framework data
+      # has already been written.
+      PRISMA_ALLOW_INSECURE_TLS: '1'
     # The Prisma client is generated from the local schema at image build time
     # (see Dockerfile migrator stage), so the seed just runs.
     command: ['bun', 'packages/db/prisma/seed/seed.ts']
