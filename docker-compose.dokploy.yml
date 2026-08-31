@@ -113,6 +113,57 @@ services:
     mem_limit: 2g
 
   # ---------------------------------------------------------------------------
+  # MinIO: S3-compatible object storage for evidence, attachments, org assets.
+  #
+  # Not optional. apps/api/src/config/aws.config.ts validates at BOOT and
+  # throws unless APP_AWS_ACCESS_KEY_ID / SECRET_ACCESS_KEY / BUCKET_NAME are
+  # all set, so the api container crash-loops without object storage. Comp's
+  # env reference lists these as "conditional", which is wrong for the api.
+  #
+  # Self-hosted rather than Cloudflare R2 or AWS so that evidence -- which is
+  # the sensitive part of a compliance record -- stays on infrastructure that
+  # is already in the ROPA, and adds no new processor.
+  # ---------------------------------------------------------------------------
+  minio:
+    <<: *hardening
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+    volumes:
+      - comp-minio:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'mc ready local || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    mem_limit: 1g
+
+  # One-shot: create the four buckets Comp expects. Idempotent.
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        for b in comp-evidence comp-org-assets comp-questionnaire comp-knowledge-base; do
+          mc mb --ignore-existing "local/$$b"
+        done
+        echo "minio buckets ready"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    restart: 'no'
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
   # One-shot: schema migrations (prisma migrate deploy — idempotent).
   # ---------------------------------------------------------------------------
   migrator:
@@ -202,7 +253,24 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       SERVICE_TOKEN_PORTAL: ${SERVICE_TOKEN_PORTAL}
       SERVICE_TOKEN_TRIGGER: ${SERVICE_TOKEN_TRIGGER}
-      # Deliberately unset: RESEND_*, POSTHOG, DUB, FIRECRAWL, UPSTASH_*.
+      # Placeholder. apps/app/src/env.mjs declares RESEND_API_KEY as a plain
+      # z.string() with no .optional(), so the process refuses to boot without
+      # it even though this deployment deliberately sends no email. Any code
+      # path that actually tries to send will fail at call time, which is
+      # acceptable while this is a single-admin instance: no invites, no
+      # employee onboarding, login is email+password.
+      RESEND_API_KEY: ${RESEND_API_KEY:-re_selfhost_email_disabled}
+      # Object storage. APP_AWS_* is the prefix Comp uses; the api validates
+      # these at boot. Endpoint + path-style point them at the in-stack MinIO.
+      APP_AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      APP_AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      APP_AWS_REGION: us-east-1
+      APP_AWS_ENDPOINT: http://minio:9000
+      APP_AWS_BUCKET_NAME: comp-evidence
+      APP_AWS_ORG_ASSETS_BUCKET: comp-org-assets
+      APP_AWS_QUESTIONNAIRE_UPLOAD_BUCKET: comp-questionnaire
+      APP_AWS_KNOWLEDGE_BASE_BUCKET: comp-knowledge-base
+      # Deliberately unset: POSTHOG, DUB, FIRECRAWL, UPSTASH_*.
       # PostHog in particular would contradict the no-third-party-tracker
       # claim W8 put into the published privacy policies.
     # AT-PATCH: upstream healthchecks with `curl`, which does not exist in
@@ -219,6 +287,8 @@ services:
       start_period: 40s
     depends_on:
       seeder:
+        condition: service_completed_successfully
+      minio-init:
         condition: service_completed_successfully
     mem_limit: 3g
     networks:
@@ -253,6 +323,24 @@ services:
       SERVICE_TOKEN_TRIGGER: ${SERVICE_TOKEN_TRIGGER}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       TRIGGER_SECRET_KEY: ${TRIGGER_SECRET_KEY:-tr_selfhost_probe_unset}
+      # Placeholder. apps/api/src/env.mjs declares RESEND_API_KEY as a plain
+      # z.string() with no .optional(), so the process refuses to boot without
+      # it even though this deployment deliberately sends no email. Any code
+      # path that actually tries to send will fail at call time, which is
+      # acceptable while this is a single-admin instance: no invites, no
+      # employee onboarding, login is email+password.
+      RESEND_API_KEY: ${RESEND_API_KEY:-re_selfhost_email_disabled}
+      # Object storage. APP_AWS_* is the prefix Comp uses; the api validates
+      # these at boot. Endpoint + path-style point them at the in-stack MinIO.
+      APP_AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      APP_AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      APP_AWS_REGION: us-east-1
+      APP_AWS_ENDPOINT: http://minio:9000
+      APP_AWS_BUCKET_NAME: comp-evidence
+      APP_AWS_ORG_ASSETS_BUCKET: comp-org-assets
+      APP_AWS_QUESTIONNAIRE_UPLOAD_BUCKET: comp-questionnaire
+      APP_AWS_KNOWLEDGE_BASE_BUCKET: comp-knowledge-base
+
     healthcheck:
       test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1:3333/v1/health || exit 1']
       interval: 30s
@@ -261,6 +349,8 @@ services:
       start_period: 40s
     depends_on:
       seeder:
+        condition: service_completed_successfully
+      minio-init:
         condition: service_completed_successfully
     mem_limit: 2g
     networks:
@@ -289,6 +379,14 @@ services:
       BETTER_AUTH_SECRET: ${AUTH_SECRET}
       NEXT_PUBLIC_BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
       SERVICE_TOKEN_PORTAL: ${SERVICE_TOKEN_PORTAL}
+      # Placeholder. apps/portal/src/env.mjs declares RESEND_API_KEY as a plain
+      # z.string() with no .optional(), so the process refuses to boot without
+      # it even though this deployment deliberately sends no email. Any code
+      # path that actually tries to send will fail at call time, which is
+      # acceptable while this is a single-admin instance: no invites, no
+      # employee onboarding, login is email+password.
+      RESEND_API_KEY: ${RESEND_API_KEY:-re_selfhost_email_disabled}
+
     healthcheck:
       test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1:3000/ || exit 1']
       interval: 30s
@@ -302,6 +400,7 @@ services:
 
 volumes:
   comp-postgres:
+  comp-minio:
 
 networks:
   dokploy-network:
