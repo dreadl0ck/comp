@@ -374,6 +374,30 @@ services:
     # containers, and the host serves a 404 with correct routers. Use wget
     # (present via busybox) and 127.0.0.1 — alpine resolves `localhost` to ::1
     # first and the Next standalone server binds IPv4.
+    # AT: access gate. This host holds the entire compliance record -- asset
+    # inventory, risk register, evidence, and the tenant-isolation findings --
+    # so app-level auth alone is a thin boundary for something reachable from
+    # the whole internet.
+    #
+    # Scope matters here. The gate is attached ONLY to the "/" route (this
+    # service). It is deliberately NOT on /v1, which the MCP server reaches
+    # with an x-api-key, nor on /api/auth, which serves the magic-link verify
+    # URL people click from their mail client. Gating either would break a
+    # working path in a way that looks like a bug rather than a control.
+    #
+    # HSTS is set here too: the api route already sends it via helmet, the app
+    # route sent nothing. No subdomains exist under compliance.*, so
+    # includeSubDomains is safe and matches what /v1 already asserts. This is a
+    # small down payment on W5, not a resolution of it.
+    labels:
+      # Passed via the env file rather than inline: the bcrypt hash is full
+      # of $ characters, which compose would otherwise try to interpolate,
+      # and it does not belong in git either way.
+      - traefik.http.middlewares.comp-gate.basicauth.users=${COMP_GATE_USERS}
+      - traefik.http.middlewares.comp-gate.basicauth.realm=Amsterdam Technologies Compliance
+      - traefik.http.middlewares.comp-hsts.headers.stsSeconds=31536000
+      - traefik.http.middlewares.comp-hsts.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.comp-hsts.headers.forceSTSHeader=true
     healthcheck:
       test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1:3000/api/health || exit 1']
       interval: 30s
@@ -432,13 +456,19 @@ services:
       # mc_dev_dummy_api_key is the value Comp's own apps/api/.env.example
       # ships for it.
       MACED_API_KEY: ${MACED_API_KEY:-mc_dev_dummy_api_key}
-      # Bootstrap only. See the AT-PATCH note in apps/api/src/auth/
-      # auth.server.ts: magic link and OTP are the only sign-in methods
-      # (emailAndPassword is disabled there) and both need email, which this
-      # deployment does not have. Writes the magic-link URL to the container
-      # log so a first sign-in is possible. Set to 0 once OAuth or email is
-      # configured.
-      LOG_MAGIC_LINKS: ${LOG_MAGIC_LINKS:-1}
+      # Magic-link URLs are no longer logged: real email delivery now exists
+      # via SMTP below, so the bootstrap escape hatch is off. Setting this to 1
+      # again would put every user's login link in the container log.
+      LOG_MAGIC_LINKS: ${LOG_MAGIC_LINKS:-0}
+      # SMTP — Amsterdam Technologies' own mail server. Replaces the upstream
+      # Trigger.dev -> Resend path for all transactional mail (magic link, OTP,
+      # invitations), removing two US processors from the auth path. See the
+      # AT-PATCH notes in src/email/smtp.ts and src/email/trigger-email.ts.
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
       # Read at call time, not boot, but required by the integration credential
       # vault and the secrets helpers. Passed through scrypt, so any strong
       # string works. Losing it makes stored integration credentials
