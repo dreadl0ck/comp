@@ -8,7 +8,23 @@ WORKDIR /app
 # Copy workspace configuration
 COPY package.json bun.lock ./
 
-# Copy package.json files for all packages (exclude local db; use published @trycompai/db)
+# Copy package.json files for all packages.
+#
+# AT-PATCH: upstream's comment claims local db is excluded in favour of the
+# published @trycompai/db, but apps/app and apps/portal both declare
+# "@trycompai/db": "workspace:*" (as well as auth, billing and company), so
+# bun must see those package.json files to resolve the workspace. Without
+# them `bun install` dies with:
+#     error: Workspace dependency "@trycompai/db" not found
+#     error: @trycompai/auth@workspace:* failed to resolve
+# The claim is also self-contradictory: the app-builder stage below runs
+# `cd packages/db && node scripts/combine-schemas.js`, i.e. it uses the local
+# package regardless. apps/api/Dockerfile.multistage already copies all four;
+# this root Dockerfile just drifted behind the package.json files.
+COPY packages/db/package.json ./packages/db/
+COPY packages/auth/package.json ./packages/auth/
+COPY packages/billing/package.json ./packages/billing/
+COPY packages/company/package.json ./packages/company/
 COPY packages/kv/package.json ./packages/kv/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/email/package.json ./packages/email/
