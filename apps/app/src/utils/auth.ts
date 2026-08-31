@@ -146,15 +146,23 @@ async function getSession(options: { headers: ReadonlyHeaders | Headers }): Prom
     });
 
     if (!response.ok) {
+      // AT-PATCH: log the failure. Upstream only logs in development, so a
+      // self-hosted instance where session lookup fails presents as a silent
+      // redirect to /auth with nothing in the logs at all.
+      console.error(
+        '[auth] get-session non-ok:',
+        response.status,
+        'API_URL=',
+        API_URL,
+      );
       return null;
     }
 
     const data = await response.json();
     return data as Session;
   } catch (error) {
-    if (IS_DEVELOPMENT) {
-      console.error('[auth] Failed to get session:', error);
-    }
+    // AT-PATCH: always log, not just in development. See above.
+    console.error('[auth] Failed to get session. API_URL=', API_URL, error);
     return null;
   }
 }
