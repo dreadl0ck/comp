@@ -317,8 +317,19 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       SECRET_KEY: ${SECRET_KEY}
       NEXT_PUBLIC_APP_URL: ${PUBLIC_URL}
+      TRUST_APP_URL: ${PUBLIC_URL}
       AUTH_TRUSTED_ORIGINS: ${PUBLIC_URL},${PUBLIC_PORTAL_URL}
       SELF_HOSTED: 'true'
+      # SecurityPenetrationTestsService throws in its constructor without this,
+      # so the whole Nest app refuses to boot over a module we do not use.
+      # mc_dev_dummy_api_key is the value Comp's own apps/api/.env.example
+      # ships for it.
+      MACED_API_KEY: ${MACED_API_KEY:-mc_dev_dummy_api_key}
+      # Read at call time, not boot, but required by the integration credential
+      # vault and the secrets helpers. Passed through scrypt, so any strong
+      # string works. Losing it makes stored integration credentials
+      # undecryptable.
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       SERVICE_TOKEN_PORTAL: ${SERVICE_TOKEN_PORTAL}
       SERVICE_TOKEN_TRIGGER: ${SERVICE_TOKEN_TRIGGER}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
