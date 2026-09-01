@@ -59,6 +59,12 @@ describe('IsmsLayout gate', () => {
     });
     mockGetFeatureFlags.mockResolvedValue({ 'is-isms-enabled': true });
     mockServerApiGet.mockResolvedValue(isoFrameworksResponse);
+    // AT-PATCH: the gate now distinguishes "provider says off" from "no
+    // provider configured", so the flag cases must run with a provider
+    // present. Without this every flag assertion below would pass for the
+    // wrong reason -- via the no-provider fall-through rather than the flag.
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test');
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_HOST', 'https://posthog.test');
   });
 
   afterEach(() => {
@@ -93,6 +99,28 @@ describe('IsmsLayout gate', () => {
     mockGetFeatureFlags.mockResolvedValue({});
     await expect(renderLayout()).resolves.toBeTruthy();
     expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  // AT-PATCH: the self-hosting case. A production deployment with no PostHog
+  // got flags = {}, read the flag as false and redirected every ISMS route to
+  // /documents -- hiding the whole ISO 27001 area with no error and no setting
+  // to find. "No provider" must not mean "feature off".
+  it('falls through in production when no flag provider is configured', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', '');
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_HOST', '');
+    mockGetFeatureFlags.mockResolvedValue({});
+    await expect(renderLayout()).resolves.toBeTruthy();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  // The other half of the distinction: with a provider present, an explicit
+  // false is still honoured, so SaaS behaviour is unchanged.
+  it('still redirects in production when a provider is configured and says off', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    mockGetFeatureFlags.mockResolvedValue({ 'is-isms-enabled': false });
+    await expect(renderLayout()).rejects.toThrow(`REDIRECT:/${ORG_ID}/documents`);
+    expect(mockRedirect).toHaveBeenCalledWith(`/${ORG_ID}/documents`);
   });
 
   it('redirects when ISO 27001 is not active even if the flag is enabled', async () => {

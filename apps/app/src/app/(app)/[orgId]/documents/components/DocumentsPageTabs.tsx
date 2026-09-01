@@ -59,9 +59,17 @@ export function DocumentsPageTabs({
   // falls through so the tab is visible locally without PostHog.
   const hasIso27001 = !!useIso27001FrameworkId(organizationId);
   const ismsFlagEnabled = useFeatureFlag(ISMS_FEATURE_FLAG);
+  // AT-PATCH: mirrors the same fix in isms/layout.tsx -- show the tab when no
+  // flag provider is configured, not only in development. Without this a
+  // self-hosted production deployment hides the ISO 27001 tab permanently,
+  // while the routes behind it (now reachable again) have no entry point.
+  // NEXT_PUBLIC_* is inlined at build time, so this is readable client-side.
+  const flagProviderConfigured = Boolean(
+    process.env.NEXT_PUBLIC_POSTHOG_KEY && process.env.NEXT_PUBLIC_POSTHOG_HOST,
+  );
   const showIsmsTab =
     hasIso27001 &&
-    (ismsFlagEnabled || process.env.NODE_ENV === 'development');
+    (ismsFlagEnabled || !flagProviderConfigured || process.env.NODE_ENV === 'development');
   const activeTab = tabParamToInternal({ tabParam: searchParams.get('tab'), showIsmsTab });
 
   const handleTabChange = useCallback(

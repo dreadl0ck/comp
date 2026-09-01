@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { getFeatureFlags } from '@/app/posthog';
+import { getFeatureFlags, isFeatureFlagProviderConfigured } from '@/app/posthog';
 import { serverApi } from '@/lib/api-server';
 import { auth } from '@/utils/auth';
 import { ISO27001_NAMES } from './isms-types';
@@ -44,7 +44,23 @@ export default async function IsmsLayout({
   });
   const ismsFlagEnabled =
     flags[ISMS_FEATURE_FLAG] === true || flags[ISMS_FEATURE_FLAG] === 'true';
-  const flagAllowsIsms = ismsFlagEnabled || process.env.NODE_ENV === 'development';
+  // AT-PATCH: also fall through when no flag provider is configured at all.
+  //
+  // Upstream falls through only for NODE_ENV === 'development', so a
+  // self-hosted PRODUCTION deployment -- which never runs PostHog -- got
+  // flags = {}, read the flag as false, and redirected every ISMS route to
+  // /documents. The entire ISO 27001 Clause 4-10 area was therefore
+  // unreachable, with no error, no empty state and no setting to find: the
+  // documents existed and were correctly populated via the API, and the UI
+  // simply bounced you to a different page.
+  //
+  // "Provider absent" and "provider says off" must not collapse to the same
+  // default. An explicit false is still honoured below when PostHog IS
+  // configured, so SaaS behaviour is unchanged.
+  const flagAllowsIsms =
+    ismsFlagEnabled ||
+    !isFeatureFlagProviderConfigured() ||
+    process.env.NODE_ENV === 'development';
 
   if (!flagAllowsIsms) redirect(`/${orgId}/documents`);
 
