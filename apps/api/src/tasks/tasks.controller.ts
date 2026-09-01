@@ -1,3 +1,4 @@
+import type { Response } from 'express';
 import { AttachmentEntityType, db } from '@db';
 import {
   BadRequestException,
@@ -11,6 +12,8 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -1310,6 +1313,47 @@ export class TasksController {
       uploadDto,
       userId,
     );
+  }
+
+  // AT-PATCH: streams the bytes, rather than returning a signed URL the caller
+  // cannot reach. See attachments.service.ts streamAttachment for why the URL
+  // form is unusable self-hosted and why rewriting its host does not work.
+  //
+  // Separate path from /download so the existing endpoint keeps its contract;
+  // anything already parsing that JSON is unaffected.
+  @Get(':taskId/attachments/:attachmentId/content')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('evidence', 'read')
+  @ApiOperation({
+    summary: 'Download attachment content',
+    description:
+      'Streams the attachment bytes through the API. Use this when the object ' +
+      'store is not reachable from the client, which is the normal case for a ' +
+      'self-hosted deployment.',
+  })
+  @ApiParam({ name: 'taskId', example: 'tsk_abc123def456' })
+  @ApiParam({ name: 'attachmentId', example: 'att_abc123def456' })
+  @ApiResponse({ status: 200, description: 'File content' })
+  async downloadTaskAttachmentContent(
+    @Param('attachmentId') attachmentId: string,
+    @OrganizationId() organizationId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const file = await this.attachmentsService.streamAttachment(
+      organizationId,
+      attachmentId,
+    );
+
+    res.set({
+      'Content-Type': file.contentType,
+      // attachment, always. These are operator-supplied files served from the
+      // application's own origin, so rendering one inline would run it there.
+      'Content-Disposition': `attachment; filename="${file.fileName.replace(/"/g, '')}"`,
+      'X-Content-Type-Options': 'nosniff',
+      ...(file.contentLength ? { 'Content-Length': String(file.contentLength) } : {}),
+    });
+
+    return new StreamableFile(file.body);
   }
 
   @Get(':taskId/attachments/:attachmentId/download')

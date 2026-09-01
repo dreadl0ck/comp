@@ -13,6 +13,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import type { Readable } from 'stream';
 import { AttachmentResponseDto } from '../tasks/dto/task-responses.dto';
 import { UploadAttachmentDto } from './upload-attachment.dto';
 import { UploadsService } from '../uploads/uploads.service';
@@ -248,6 +249,54 @@ export class AttachmentsService {
     );
 
     return attachmentsWithUrls;
+  }
+
+  /**
+   * AT-PATCH: stream an attachment's bytes through the API.
+   *
+   * The signed URLs this service hands out point at APP_AWS_ENDPOINT, which in
+   * a self-hosted deployment is an internal address (http://minio:9000). They
+   * are correctly signed and completely unreachable from a browser, so every
+   * "download evidence" link is dead — which for a compliance tool means the
+   * evidence effectively does not exist.
+   *
+   * The URL cannot simply be rewritten to a public host: SigV4 signs the Host
+   * header, so changing it invalidates the signature. The two real options are
+   * to presign against a public endpoint, which means publishing the object
+   * store, or to stream through the API, which does not. This is the second.
+   * The API is already public and already authenticated, so the download
+   * inherits that check instead of relying on an unguessable URL, and MinIO
+   * stays on the internal network with no new attack surface.
+   */
+  async streamAttachment(
+    organizationId: string,
+    attachmentId: string,
+  ): Promise<{ body: Readable; contentType: string; fileName: string; contentLength?: number }> {
+    const attachment = await db.attachment.findFirst({
+      where: { id: attachmentId, organizationId },
+    });
+
+    if (!attachment) {
+      throw new BadRequestException('Attachment not found');
+    }
+
+    const obj = await this.s3Client.send(
+      new GetObjectCommand({ Bucket: this.bucketName, Key: attachment.url }),
+    );
+
+    if (!obj.Body) {
+      throw new BadRequestException('Attachment has no content');
+    }
+
+    return {
+      body: obj.Body as Readable,
+      // Fall back to octet-stream rather than guessing from the extension: a
+      // wrong Content-Type on attacker-influenced content is how a stored file
+      // becomes stored XSS.
+      contentType: obj.ContentType || 'application/octet-stream',
+      fileName: attachment.name,
+      contentLength: obj.ContentLength,
+    };
   }
 
   /**
