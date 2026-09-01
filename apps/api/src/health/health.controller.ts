@@ -70,7 +70,24 @@ export class HealthController {
     };
 
     try {
-      await db.$queryRaw`SELECT 1`;
+      // Bounded, because an unbounded probe is a worse failure than no probe.
+      // Verified against a frozen database (docker pause) rather than a stopped
+      // one: a stopped container refuses the connection immediately, but a
+      // hung, wedged or network-partitioned one accepts it and never answers,
+      // and the bare query then blocks forever. That turned this endpoint into
+      // an indefinite hang -- the monitor eventually times out and calls it
+      // down, so the alert survives, but every probe holds a connection and a
+      // request slot until it gives up, which is how a health check becomes
+      // the thing that finishes off a struggling service.
+      //
+      // 5s is comfortably above normal (sub-millisecond, same host) and below
+      // any sensible monitor timeout, so the 503 arrives as a real answer.
+      await Promise.race([
+        db.$queryRaw`SELECT 1`,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('database probe timed out')), 5_000),
+        ),
+      ]);
       return { status: 'ok', database: 'ok', ...base };
     } catch {
       // Deliberately not rethrowing: a health endpoint that 500s with a stack
