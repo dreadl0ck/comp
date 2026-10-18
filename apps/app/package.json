@@ -204,6 +204,7 @@
         "test:all": "./scripts/test-all.sh",
         "test:coverage": "vitest run --coverage",
         "test:e2e": "playwright test",
+        "test:e2e:guards": "bun --no-env-file test scripts/e2e-database.test.ts scripts/e2e-auth-boundary.test.ts scripts/e2e-isolation.test.ts",
         "test:e2e:debug": "playwright test --debug",
         "test:e2e:headed": "playwright test --headed",
         "test:e2e:install": "playwright install --with-deps",
