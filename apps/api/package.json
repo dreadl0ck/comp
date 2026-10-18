@@ -212,6 +212,8 @@
         "test:cov": "jest --coverage",
         "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
         "test:e2e": "jest --config ./test/jest-e2e.json",
+        "test:auth-local": "bun --no-env-file test/auth-local/run.ts",
+        "test:auth-local:guards": "bun --no-env-file test --max-concurrency 1 test/auth-local/safety.test.ts",
         "test:watch": "jest --watch",
         "typecheck": "tsc --noEmit"
     }

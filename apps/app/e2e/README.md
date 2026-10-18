@@ -55,12 +55,69 @@ E2E_DATABASE_URL='postgresql://comp_e2e:fixture@127.0.0.1:42179/comp_e2e_0123456
 | Prisma                           | No `--accept-data-loss`, migration reset, seed, generator or application launch                                                                |
 | Disposal                         | On failure retain the claimed schema for diagnosis; operator disposes only the explicitly provisioned run database after checking its identity |
 
-Real Postgres schema application and Nest/BetterAuth integration remain pending.
-Provision a disposable local Postgres on a separate allowed port, run this setup,
-then exercise actual magic-link/OTP issuance against a local mail sink, session
-expiry/revocation and tenant denial with provider egress blocked. Prisma schema
-push alone does not install migration-defined functions such as
-`generate_prefixed_cuid`; validate migrations before seeding real users.
+## Real local authentication seam
+
+`apps/api` now has `bun --no-env-file run test:auth-local`: **integration-local**,
+3 serial tests against the actual `src/auth/auth.server.ts` BetterAuth instance,
+its Prisma adapter, session hooks and organization plugin. This is the bounded
+BetterAuth HTTP API fallback; Nest controllers/guards, Next login pages, SMTP
+delivery and Trigger workers are outside this suite.
+
+```bash
+# packages/email (packages/auth must also be built, as above)
+env -i PATH="$PATH" HOME="$HOME" bun --no-env-file run build
+# apps/api; prepare the real API client's ignored generated schema/client
+env -i PATH="$PATH" HOME="$HOME" bun --no-env-file run db:getschema
+env -i PATH="$PATH" HOME="$HOME" bun --no-env-file ../../node_modules/prisma/build/index.js generate --schema prisma/schema
+env -i PATH="$PATH" HOME="$HOME" bun --no-env-file run test:auth-local:guards
+bun --no-env-file run test:auth-local
+```
+
+Prerequisites: local Docker engine, free loopback ports `42410–42411`, installed
+workspace dependencies and Chromium matching `playwright-core` (install through
+the existing `apps/app` browser-install command above). The exercised versions
+were Bun `1.3.9`, Postgres `16.10`, Prisma `7.6.0`, BetterAuth `1.6.23` and
+Playwright `1.61.1`; `bun.lock` is ignored by this repository.
+
+| Contract         | Real assertion                                                                                                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Magic link       | Capture rendered mail locally, consume actual verify URL in Chromium, assert HttpOnly/Lax signed cookie and DB-generated user/session IDs, reload and retain session                             |
+| Logout/replay    | Actual sign-out deletes DB session; browser and old-cookie replay return null; consumed link cannot issue another session                                                                        |
+| OTP/expiry       | Reject wrong code before successful login and reject consumed-code replay; expire DB session while retaining cookie and deny replay; expire verification row and refuse magic link               |
+| Tenant isolation | Independent cookie jars/users create separate organizations; foreign reads/switches return 403 without foreign data or membership; own reads/reselection and fresh-login active-org hook succeed |
+| Passwords        | Actual password endpoint returns `400 EMAIL_PASSWORD_DISABLED`; production options stay untouched                                                                                                |
+
+`test/auth-local/run.ts` re-execs with an environment allowlist, discarding ambient
+`DATABASE_URL`, mail/provider credentials and dotenv. It starts a digest-pinned
+`postgres:16.10` container with unique database, password and run/revision labels.
+Before schema changes it checks the container identity and DB role/name, then
+writes and rereads the database ownership comment. It installs `pgcrypto` and
+`generate_prefixed_cuid` verbatim from the initial migration, then pushes the
+complete current canonical schema. This verifies current-schema auth persistence,
+not historical migration replay. Both ports fail on collision; no server reuse.
+
+The test replaces only the dotenv loader and `triggerEmail` transport with an
+in-memory, non-delivering rendered-mail sink. Server fetches fail, HTTP clients
+refuse nonlocal redirects, and Chromium blocks external origins/WebSockets and
+service workers. This is application-level containment, not an OS egress sandbox.
+`test:auth-local:guards` checks 6 unsafe DB configurations and preserves an unrelated
+server during an API-port collision. All tests use one worker and zero retries.
+
+`apps/api/test-results/auth-local/<run-id>/` retains private manifests and logs;
+delete after diagnosis. The runner removes only its labeled container and anonymous
+volume on success/failure; SIGKILL requires manual label-checked disposal. It
+leaves the pulled image and generated clients available for subsequent runs.
+
+Pitfalls: `db:getschema` must precede client generation or the API client has zero
+models; Postgres readiness must use TCP, since initdb's temporary Unix listener
+exits; Playwright APIRequestContext under Bun `1.3.9` misparses cookie-response
+URLs, so HTTP fixtures use real fetch/Set-Cookie jars; BetterAuth clears active
+organization on membership denial, and the suite asserts that persisted null.
+
+Next seam: boot a bounded Nest module with `HybridAuthGuard`/`PermissionGuard`
+and real tenant resource handlers against this owned DB, then connect actual
+Next login pages. Full Nest startup still requires isolating application
+dotenv/provider initialization; `dev` also starts Trigger and is unsuitable here.
 
 ## Legacy suite boundary
 
