@@ -31,11 +31,15 @@ COPY packages/billing/package.json ./packages/billing/
 COPY apps/api/package.json ./apps/api/
 
 # Install dependencies — skip lifecycle scripts (husky, etc. not needed in Docker)
-RUN bun install --ignore-scripts
+COPY build-locks/api.bun.lock ./bun.lock
+RUN bun install --ignore-scripts --frozen-lockfile
 
 # =============================================================================
 # STAGE 2: Builder - Build workspace packages and NestJS app
 # =============================================================================
+FROM scratch AS dependency-lock
+COPY --from=deps /app/bun.lock /bun.lock
+
 FROM oven/bun:1.2.8 AS builder
 
 WORKDIR /app

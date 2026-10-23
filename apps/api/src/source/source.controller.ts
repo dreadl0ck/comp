@@ -3,11 +3,12 @@ import {
   Get,
   Res,
   ServiceUnavailableException,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { createReadStream } from 'node:fs';
 import type { Response } from 'express';
 import { HybridAuthGuard } from '../auth/hybrid-auth.guard';
 import { SkipOrgCheck } from '../auth/skip-org-check.decorator';
@@ -17,7 +18,7 @@ import { SkipOrgCheck } from '../auth/skip-org-check.decorator';
 @UseGuards(HybridAuthGuard)
 @SkipOrgCheck()
 export class SourceController {
-  private readSource() {
+  private async readSource() {
     const revision = process.env.COMP_SOURCE_REVISION;
     const sha256 = process.env.COMP_SOURCE_SHA256;
     if (
@@ -30,11 +31,13 @@ export class SourceController {
     }
     try {
       const directory = process.env.COMP_SOURCE_DIRECTORY || '/opt/comp-source';
-      const archive = readFileSync(`${directory}/${revision}.tar.gz`);
-      if (createHash('sha256').update(archive).digest('hex') !== sha256) {
+      const filename = `${directory}/${revision}.tar.gz`;
+      const hash = createHash('sha256');
+      for await (const chunk of createReadStream(filename)) hash.update(chunk);
+      if (hash.digest('hex') !== sha256) {
         throw new Error('Source hash mismatch');
       }
-      return { revision, sha256, archive };
+      return { revision, sha256, filename };
     } catch {
       throw new ServiceUnavailableException('Matching source is unavailable');
     }
@@ -46,8 +49,8 @@ export class SourceController {
     description:
       'All authenticated users may obtain the deployed modified AGPL source without an additional role, NDA or repository access. Download using the same authentication at /v1/source/archive.',
   })
-  metadata() {
-    const { revision, sha256 } = this.readSource();
+  async metadata() {
+    const { revision, sha256 } = await this.readSource();
     return {
       revision,
       sha256,
@@ -62,8 +65,8 @@ export class SourceController {
     description:
       'Download the full corresponding modified Comp source using existing session, API-key or service-token authentication. No additional source permission is required.',
   })
-  download(@Res() response: Response) {
-    const { revision, sha256, archive } = this.readSource();
+  async download(@Res({ passthrough: true }) response: Response) {
+    const { revision, sha256, filename } = await this.readSource();
     response.set({
       'Content-Type': 'application/gzip',
       'Content-Disposition': `attachment; filename="comp-${revision}.tar.gz"`,
@@ -71,6 +74,6 @@ export class SourceController {
       'X-Source-Revision': revision,
       'X-Source-SHA256': sha256,
     });
-    response.send(archive);
+    return new StreamableFile(createReadStream(filename));
   }
 }

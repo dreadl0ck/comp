@@ -15,6 +15,7 @@ jest.mock('../auth/auth.server', () => ({
   },
 }));
 jest.mock('@db', () => ({ db: {} }));
+jest.mock('@trycompai/auth', () => ({ BUILT_IN_ROLE_PERMISSIONS: {} }));
 
 describe('matching-source authentication', () => {
   const apiKeyService = { extractApiKey: jest.fn(), validateApiKey: jest.fn() };

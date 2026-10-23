@@ -36,29 +36,29 @@ describe('SourceController', () => {
     ]);
     expect(Reflect.getMetadata('skipOrgCheck', SourceController)).toBe(true);
   });
-  it('identifies the matching download', () => {
-    expect(new SourceController().metadata()).toEqual({
+  it('identifies the matching download', async () => {
+    expect(await new SourceController().metadata()).toEqual({
       revision,
       sha256,
       license: 'AGPL-3.0',
       archive: '/v1/source/archive',
     });
   });
-  it('rejects tampered source', () => {
+  it('rejects tampered source', async () => {
     writeFileSync(join(directory, `${revision}.tar.gz`), 'tampered');
-    expect(() => new SourceController().metadata()).toThrow(
+    await expect(new SourceController().metadata()).rejects.toThrow(
       ServiceUnavailableException,
     );
   });
-  it('rejects missing source', () => {
+  it('rejects missing source', async () => {
     rmSync(join(directory, `${revision}.tar.gz`));
-    expect(() => new SourceController().metadata()).toThrow(
+    await expect(new SourceController().metadata()).rejects.toThrow(
       ServiceUnavailableException,
     );
   });
-  it('rejects an unpublished or traversal revision', () => {
+  it('rejects an unpublished or traversal revision', async () => {
     process.env.COMP_SOURCE_REVISION = '../../credentials';
-    expect(() => new SourceController().metadata()).toThrow(
+    await expect(new SourceController().metadata()).rejects.toThrow(
       ServiceUnavailableException,
     );
   });

@@ -22,6 +22,12 @@ class SourceSafety(unittest.TestCase):
     def test_does_not_reject_parser_delimiters(self):
         packager.check('packages/parser.ts', '100644', b'const marker = "-----BEGIN RSA ' + b'PRIVATE KEY-----\\n";')
 
+    def test_unreviewed_supplier_rights_block_publication(self):
+        with self.assertRaisesRegex(ValueError, 'publication blocked'):
+            packager.require_dependency_review([], {'clearForBundling': False})
+        with self.assertRaisesRegex(ValueError, 'Unreviewed supplier'):
+            packager.require_dependency_review([{'identity': 'fixture@1.0', 'sha256': 'a'*64}], {'clearForBundling': True, 'reviewed': {}})
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -5,10 +5,20 @@ workspace source are included at the revision named by the source manifest.
 Recipients retain the license's copying/modification/redistribution rights;
 source access imposes no NDA or separate code-host membership.
 
+Publication is currently blocked by `source-dependency-review.json`; acquisition
+of 3,249 registry packages does not establish redistribution or complete native
+source rights. `package-source.py --dependencies <private-acquisition-dir>`
+refuses an incomplete review. No dependency-complete source offer or runtime
+release has been published from this work.
+
 ## Build
 
 Use Bun 1.2.8 for the Docker build (`Dockerfile`, `apps/api/Dockerfile.multistage`).
 `bun.lock` records registry dependency identities; preserve supplier licenses.
+Docker builds use the frozen profile locks in `build-locks/`. They retain only
+the selected workspaces and introduce zero new registry package versions;
+`record-build-locks.py` checks version identities and integrity against the root
+lock. A build must fail instead of silently resolving different dependencies.
 
 ```sh
 docker build --target app -t comp-app .

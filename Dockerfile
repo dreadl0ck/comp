@@ -39,11 +39,15 @@ COPY apps/app/package.json ./apps/app/
 COPY apps/portal/package.json ./apps/portal/
 
 # Install all dependencies
-RUN PRISMA_SKIP_POSTINSTALL_GENERATE=true bun install --ignore-scripts
+COPY build-locks/app.bun.lock ./bun.lock
+RUN PRISMA_SKIP_POSTINSTALL_GENERATE=true bun install --ignore-scripts --frozen-lockfile
 
 # =============================================================================
 # STAGE 2: Ultra-Minimal Migrator - Only Prisma
 # =============================================================================
+FROM scratch AS dependency-lock
+COPY --from=deps /app/bun.lock /bun.lock
+
 FROM oven/bun:1.2.8 AS migrator
 ARG COMP_SOURCE_REVISION
 ARG COMP_SOURCE_SHA256
@@ -64,7 +68,8 @@ COPY packages/db/src ./packages/db/src
 #   - added @prisma/adapter-pg, which prisma/seed/seed.ts imports but upstream
 #     never declared, leaving the seed reliant on bun hoisting it transitively.
 #   - dropped @trycompai/db. See the schema note below.
-RUN echo '{"name":"migrator","type":"module","dependencies":{"prisma":"^6.14.0","@prisma/client":"^6.14.0","@prisma/adapter-pg":"^6.14.0","zod":"^3.25.7"}}' > package.json
+# Retain the verified deployed toolchain; 6.19.3 panics on this schema.
+RUN echo '{"name":"migrator","type":"module","dependencies":{"prisma":"6.19.0","@prisma/client":"6.19.0","@prisma/adapter-pg":"6.19.0","zod":"3.25.76"}}' > package.json
 
 # Install ONLY Prisma dependencies
 RUN bun install

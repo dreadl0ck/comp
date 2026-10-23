@@ -1,0 +1,40 @@
+{
+  "clearForBundling": false,
+  "profiles": {
+    "app": "d9c708ca469a589fe6a804b1f3e0d18ca437ae9e428d713fbdeccd52a20349e0",
+    "api": "1528ff1e0bff8e39522cb6ce75b46077ed1ef3e0ab38db6e3376683d06cb4a68"
+  },
+  "acquiredPackages": 3249,
+  "acquiredBytes": 1737962404,
+  "reviewed": {},
+  "blockers": [
+    {
+      "identity": "@inference/tracing@0.0.21",
+      "archiveSHA256": "e63142fd8e3997d07dfa4164f08026000230844340059e809459746422ddbf35",
+      "gitHead": "1bf37ef219da105e4f6f46db9c81ac1ba5689d36",
+      "evidence": "Exact npm metadata has no license or repository; acquired archive contains no LICENSE/COPYING/NOTICE and its README provides no grant. apps/api/src/inference-tracing.ts imports it directly.",
+      "needed": "Recover the exact supplier redistribution/source grant, or approve a scoped replacement. Do not infer permission from npm availability."
+    },
+    {
+      "identity": "@dub/embed-core@0.0.16",
+      "archiveSHA256": "67ad18d47d0c45f94ea3be01d76c0b2662b117f3b66f1a733a7fb96e4f6afc7c",
+      "gitHead": "e4d358982c5a5b544495fb18386624ef26c8f16e",
+      "evidence": "Exact npm metadata has no license; archive contains no legal text. Supplier points to dubinc/dub; package-scope terms at this revision remain unreviewed.",
+      "needed": "Recover package-specific terms and matching source at the immutable supplier revision."
+    },
+    {
+      "identity": "@dub/embed-react@0.0.16",
+      "archiveSHA256": "8cca3efcf9186066f20e751f77bb8f8cbc45cdb4aa6c10fd4a94b81bf72398dc",
+      "gitHead": "e4d358982c5a5b544495fb18386624ef26c8f16e",
+      "evidence": "Exact npm metadata has no license; archive contains no legal text. apps/app/src/app/(app)/[orgId]/referrals/components/DubReferral.tsx imports it directly.",
+      "needed": "Recover package-specific terms and matching source at the immutable supplier revision."
+    },
+    {
+      "identity": "buffers@0.1.1",
+      "archiveSHA256": "f8de49c60e467005182d9687b5d87775bbcec6385ac63220b7741327441deb6d",
+      "evidence": "No license declaration or legal text in the acquired package; repository points to substack/node-buffers without gitHead.",
+      "needed": "Recover matching original grant or establish artifact-backed exclusion."
+    }
+  ],
+  "remainingReview": "Preserve all supplied terms and assess actual source/build/runtime inclusion before bundling the entire lock superset. FSL build tools, native libvips/compiled dependencies and supplier-source companions need their own scope-specific decisions. @dub/better-auth and botid declare MIT in README; missing standalone text is not treated as absence of a declaration. No blanket AGPL grant is asserted over supplier packages."
+}

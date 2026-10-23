@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { createReadStream } from 'node:fs';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,12 +16,26 @@ export async function GET(_request: Request, context: { params: Promise<{ path?:
   }
   try {
     const directory = process.env.COMP_SOURCE_DIRECTORY || '/opt/comp-source';
-    const archive = readFileSync(`${directory}/${revision}.tar.gz`);
-    if (createHash('sha256').update(archive).digest('hex') !== sha256) {
+    const filename = `${directory}/${revision}.tar.gz`;
+    const hash = createHash('sha256');
+    for await (const chunk of createReadStream(filename)) hash.update(chunk);
+    if (hash.digest('hex') !== sha256) {
       throw new Error('Source hash mismatch');
     }
     if (path[0] === 'archive') {
-      return new Response(new Uint8Array(archive), {
+      const stream = createReadStream(filename);
+      const iterator = stream[Symbol.asyncIterator]();
+      const body = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          const { done, value } = await iterator.next();
+          if (done) controller.close();
+          else controller.enqueue(new Uint8Array(value));
+        },
+        cancel() {
+          stream.destroy();
+        },
+      });
+      return new Response(body, {
         headers: {
           'Content-Type': 'application/gzip',
           'Content-Disposition': `attachment; filename="comp-${revision}.tar.gz"`,
