@@ -159,7 +159,7 @@ services:
 
   # One-shot: create the four buckets Comp expects. Idempotent.
   minio-init:
-    # Retain the deployed image's bundled mc; the standalone tag is unavailable.
+    # Includes mc RELEASE.2025-04-16T18-13-26Z; its standalone image is unavailable.
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     depends_on:
       minio:

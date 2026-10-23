@@ -68,7 +68,7 @@ COPY packages/db/src ./packages/db/src
 #   - added @prisma/adapter-pg, which prisma/seed/seed.ts imports but upstream
 #     never declared, leaving the seed reliant on bun hoisting it transitively.
 #   - dropped @trycompai/db. See the schema note below.
-# Retain the verified deployed toolchain; 6.19.3 panics on this schema.
+# Prisma 6.19.3 panics generating this schema; 6.19.0 is verified on linux/amd64.
 RUN echo '{"name":"migrator","type":"module","dependencies":{"prisma":"6.19.0","@prisma/client":"6.19.0","@prisma/adapter-pg":"6.19.0","zod":"3.25.76"}}' > package.json
 
 # Install ONLY Prisma dependencies
