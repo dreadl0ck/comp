@@ -36,5 +36,10 @@
       "needed": "Recover matching original grant or establish artifact-backed exclusion."
     }
   ],
+  "fontAssetsPendingReview": [
+    {"path": "apps/app/public/fonts/GeneralSans-Variable.ttf", "sha256": "4b2539d9ed3367e8f55f7ddd369ab13e17bb279ff2eb7fdca6c713af13d4df84"},
+    {"path": "apps/app/public/fonts/GeneralSans-VariableItalic.ttf", "sha256": "4aa0c20dbb593ad82b41f090fbbc8efb1bfe3df85ca895c08092f77d467fea60"}
+  ],
+  "fontEvidence": "Embedded names identify General Sans Variable 2.000, copyright 2017-2021 Indian Type Foundry, and https://fontshare.com/terms. Name ID 13 requires identifying the fonts and crediting ITF in design/production credits. Full package/source-bundle permission and delivered credit placement remain unverified; the terms endpoint serves a JavaScript shell. No AGPL grant is inferred for these fonts.",
   "remainingReview": "Preserve all supplied terms and assess actual source/build/runtime inclusion before bundling the entire lock superset. FSL build tools, native libvips/compiled dependencies and supplier-source companions need their own scope-specific decisions. @dub/better-auth and botid declare MIT in README; missing standalone text is not treated as absence of a declaration. No blanket AGPL grant is asserted over supplier packages."
 }
