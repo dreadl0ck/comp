@@ -16,7 +16,7 @@ FILES = {"LICENSE", "README.md", "Dockerfile", "docker-compose.dokploy.yml", ".d
          "package.json", "bun.lock", "turbo.json", "tsconfig.json", "package-source.py",
          "SOURCE-BUILD.md", "source-compose.yml"}
 FORBIDDEN = {"node_modules", ".git", ".next", "dist", "coverage", "test-results", ".turbo",
-             "playwright-report", "logs", "uploads", "backups", "__pycache__"}
+             "playwright-report", "__pycache__"}
 
 
 def git(*args):
@@ -25,6 +25,8 @@ def git(*args):
 
 def check(name, mode, data):
     parts = Path(name).parts
+    if name.startswith(('apps/api/uploads/', 'apps/api/logs/', 'apps/api/backups/', 'apps/app/uploads/')):
+        raise ValueError("Runtime data: " + name)
     if mode not in {"100644", "100755"} or any(x in FORBIDDEN or x.startswith(".env") for x in parts):
         raise ValueError("Forbidden source member: " + name)
     if name.endswith((".sql.gz", ".dump", ".pem", ".key", ".p12", ".pfx")):
