@@ -19,6 +19,8 @@ next-env.d.ts
 
 # production
 build
+!vendor-source/native-build/sharp-libvips/build/
+!vendor-source/native-build/sharp-libvips/build/posix.sh
 
 # misc
 .DS_Store
