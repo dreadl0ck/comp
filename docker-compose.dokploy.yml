@@ -228,6 +228,9 @@ services:
       context: .
       dockerfile: Dockerfile
       target: migrator
+      args:
+        COMP_SOURCE_REVISION: ${COMP_SOURCE_REVISION:?publish matching source first}
+        COMP_SOURCE_SHA256: ${COMP_SOURCE_SHA256:?publish matching source first}
     volumes:
       - comp-pgcerts:/certs:ro
     environment:
@@ -259,6 +262,9 @@ services:
       context: .
       dockerfile: Dockerfile
       target: migrator
+      args:
+        COMP_SOURCE_REVISION: ${COMP_SOURCE_REVISION:?publish matching source first}
+        COMP_SOURCE_SHA256: ${COMP_SOURCE_SHA256:?publish matching source first}
     volumes:
       - comp-pgcerts:/certs:ro
     environment:
@@ -289,6 +295,8 @@ services:
       dockerfile: Dockerfile
       target: app
       args:
+        COMP_SOURCE_REVISION: ${COMP_SOURCE_REVISION:?publish matching source first}
+        COMP_SOURCE_SHA256: ${COMP_SOURCE_SHA256:?publish matching source first}
         # All NEXT_PUBLIC_* are INLINED AT BUILD TIME by Next. Changing any of
         # these is a rebuild, never a restart.
         NEXT_PUBLIC_BETTER_AUTH_URL: ${PUBLIC_URL}
@@ -297,6 +305,7 @@ services:
         NEXT_PUBLIC_SELF_HOSTED: 'true'
     volumes:
       - comp-pgcerts:/certs:ro
+      - /root/comp-source:/opt/comp-source:ro
     environment:
       # Next standalone honours HOSTNAME; pin it so Traefik can reach the
       # container over dokploy-network rather than loopback only.
@@ -427,8 +436,12 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile.multistage
       target: production
+      args:
+        COMP_SOURCE_REVISION: ${COMP_SOURCE_REVISION:?publish matching source first}
+        COMP_SOURCE_SHA256: ${COMP_SOURCE_SHA256:?publish matching source first}
     volumes:
       - comp-pgcerts:/certs:ro
+      - /root/comp-source:/opt/comp-source:ro
     environment:
       NODE_ENV: production
       PORT: '3333'
@@ -533,6 +546,9 @@ services:
       context: .
       dockerfile: Dockerfile
       target: portal
+      args:
+        COMP_SOURCE_REVISION: ${COMP_SOURCE_REVISION:?publish matching source first}
+        COMP_SOURCE_SHA256: ${COMP_SOURCE_SHA256:?publish matching source first}
       args:
         NEXT_PUBLIC_BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
     volumes:

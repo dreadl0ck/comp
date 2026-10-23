@@ -8,6 +8,9 @@ export const config = {
 };
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname === '/source' || request.nextUrl.pathname.startsWith('/source/')) {
+    return NextResponse.next();
+  }
   try {
     // Check for session cookies across all environment prefixes
     const sessionToken =

@@ -45,6 +45,9 @@ RUN PRISMA_SKIP_POSTINSTALL_GENERATE=true bun install --ignore-scripts
 # STAGE 2: Ultra-Minimal Migrator - Only Prisma
 # =============================================================================
 FROM oven/bun:1.2.8 AS migrator
+ARG COMP_SOURCE_REVISION
+ARG COMP_SOURCE_SHA256
+LABEL org.opencontainers.image.revision=$COMP_SOURCE_REVISION com.amsterdam-technologies.source.sha256=$COMP_SOURCE_SHA256
 
 WORKDIR /app
 
@@ -182,6 +185,10 @@ RUN cd apps/app && SKIP_ENV_VALIDATION=true bun run build:docker
 # STAGE 4: App Production
 # =============================================================================
 FROM node:22-alpine AS app
+ARG COMP_SOURCE_REVISION
+ARG COMP_SOURCE_SHA256
+ENV COMP_SOURCE_REVISION=$COMP_SOURCE_REVISION COMP_SOURCE_SHA256=$COMP_SOURCE_SHA256
+LABEL org.opencontainers.image.revision=$COMP_SOURCE_REVISION com.amsterdam-technologies.source.sha256=$COMP_SOURCE_SHA256
 
 WORKDIR /app
 
@@ -248,6 +255,10 @@ RUN cd apps/portal && SKIP_ENV_VALIDATION=true bun run build:docker
 # STAGE 6: Portal Production
 # =============================================================================
 FROM node:22-alpine AS portal
+ARG COMP_SOURCE_REVISION
+ARG COMP_SOURCE_SHA256
+ENV COMP_SOURCE_REVISION=$COMP_SOURCE_REVISION COMP_SOURCE_SHA256=$COMP_SOURCE_SHA256
+LABEL org.opencontainers.image.revision=$COMP_SOURCE_REVISION com.amsterdam-technologies.source.sha256=$COMP_SOURCE_SHA256
 
 WORKDIR /app
 

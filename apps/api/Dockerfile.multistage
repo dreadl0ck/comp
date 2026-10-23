@@ -80,6 +80,10 @@ RUN find /app/packages/db/prisma/schema -name '*.prisma' ! -name 'schema.prisma'
 # STAGE 3: Production Runtime
 # =============================================================================
 FROM node:22-slim AS production
+ARG COMP_SOURCE_REVISION
+ARG COMP_SOURCE_SHA256
+ENV COMP_SOURCE_REVISION=$COMP_SOURCE_REVISION COMP_SOURCE_SHA256=$COMP_SOURCE_SHA256
+LABEL org.opencontainers.image.revision=$COMP_SOURCE_REVISION com.amsterdam-technologies.source.sha256=$COMP_SOURCE_SHA256
 
 # Create non-root user before copying files so COPY --chown can use it
 RUN groupadd --system nestjs && useradd --system --gid nestjs --create-home nestjs

@@ -1,0 +1,23 @@
+services:
+  source:
+    image: nginx:1.31.5-alpine
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+    volumes:
+      - ${SOURCE_DIRECTORY:?}:/usr/share/nginx/html/legal/source:ro
+    networks:
+      - dokploy-network
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.comp-source.rule=Host(`compliance.amsterdam-technologies.com`) && PathPrefix(`/legal/source/`)
+      - traefik.http.routers.comp-source.priority=200
+      - traefik.http.routers.comp-source.entrypoints=websecure
+      - traefik.http.routers.comp-source.tls.certresolver=letsencrypt
+      - traefik.http.routers.comp-source.middlewares=comp-gate@docker
+      - traefik.http.services.comp-source.loadbalancer.server.port=80
+networks:
+  dokploy-network:
+    external: true

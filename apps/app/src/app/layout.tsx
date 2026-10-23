@@ -99,6 +99,9 @@ export default async function Layout({ children }: { children: React.ReactNode }
           <Providers session={session}>{children}</Providers>
         </NuqsAdapter>
         <Toaster richColors />
+        <footer style={{ padding: '0.5rem 1rem' }}>
+          <a href="/source">Modified Comp source (AGPLv3)</a>
+        </footer>
         <VercelAnalytics />
       </body>
     </html>
