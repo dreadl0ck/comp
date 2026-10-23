@@ -1,0 +1,155 @@
+{
+  "repository": "https://github.com/dubinc/dub",
+  "revision": "e4d358982c5a5b544495fb18386624ef26c8f16e",
+  "license": "AGPL-3.0",
+  "files": [
+    {
+      "path": "LICENSE.md",
+      "sha256": "0ba48e458023946432010b4fb1adade52e89843371b42f43cca7f7cc7af6ecd2",
+      "gitBlob": "ecc430f5d58c8f2b14d81484d6adb39a6b5ab7ad"
+    },
+    {
+      "path": "packages/embeds/core/README.md",
+      "sha256": "01ddb68339ffa21acba9b77acdffe7c8462c9975b9de3de60bc28e67ab73466d",
+      "gitBlob": "14c42c41517f2b51b9dfe80a589b79a58439d694"
+    },
+    {
+      "path": "packages/embeds/core/package.json",
+      "sha256": "d07f26f0f534b8ed9d5eb3f427f590339f39445f6ba7747cdc3dfafa0f8dec0d",
+      "gitBlob": "fef9c4ad5f18a2354c3873db78e72214549fd28e"
+    },
+    {
+      "path": "packages/embeds/core/src/constants.ts",
+      "sha256": "f8b39e1197e3c6fe280702c740f453a5b30e3cdfad26846aaeb6924e1cdf9b73",
+      "gitBlob": "d3410a9d038c7d14d5d0c0456eda919c34db407f"
+    },
+    {
+      "path": "packages/embeds/core/src/core.ts",
+      "sha256": "964f956d7452540abfc8ff9656a6bbbf2cf2f9d58edc0c1dea6759cfed8d7254",
+      "gitBlob": "a5f566c55082b298b1945db754073af9e722c705"
+    },
+    {
+      "path": "packages/embeds/core/src/embed.ts",
+      "sha256": "37877b50945a577cfda7b7d698ccbee2c2e42f1f30bc151d5046c1a41bf4241d",
+      "gitBlob": "9f3b32212d25395677f40d8a2544495b9c81de53"
+    },
+    {
+      "path": "packages/embeds/core/src/error.ts",
+      "sha256": "f04ffe88ccfb78a5431d6993bfb950a7551ea6a6b0c21558c8f3e8593458eca5",
+      "gitBlob": "933bd4af8fbe8e9fd87ee78fccc8ba2d7b48a065"
+    },
+    {
+      "path": "packages/embeds/core/src/example/index.html",
+      "sha256": "b4ec3df9a3c19277a28a66382fc6fdb9579e83537add19478673da0d527aeb91",
+      "gitBlob": "abbb3a470acda085b93f00d219ca75f239c491e1"
+    },
+    {
+      "path": "packages/embeds/core/src/index.ts",
+      "sha256": "e1b178ae1db87c244b967e5da190f9fcc52c33d7008807496ce613631a827346",
+      "gitBlob": "fe469cfcc0488e16bfb7c7c81191d40c12324671"
+    },
+    {
+      "path": "packages/embeds/core/src/types.ts",
+      "sha256": "a024eaee13263e12de7291501af9d62cc44f47fd7f83dab5c2b072e5e8700cb0",
+      "gitBlob": "a931d77083885d9e2339802d1b4730b783d01b0d"
+    },
+    {
+      "path": "packages/embeds/core/tsconfig.json",
+      "sha256": "0aed286a2e78611ad3e3597367a3e62d25fe8bc38097103b448864aacebb4d9f",
+      "gitBlob": "8c5aa8f1d10c9ff5b4bc82ef93ba12778856f8d3"
+    },
+    {
+      "path": "packages/embeds/core/tsup.config.ts",
+      "sha256": "39db57901702633609a1d50bde135b6550b6abea91040f43fa59b454e5515a84",
+      "gitBlob": "2fef55e9e10473da4bf944f52329f4beefdb4f12"
+    },
+    {
+      "path": "packages/embeds/react/README.md",
+      "sha256": "d0c58b1036e17ae13763906d3302594c48acc1802843acfd05ad1f22be8f10a2",
+      "gitBlob": "ae368ee459f6754fdb49e43e7fdb3deaee7dc95e"
+    },
+    {
+      "path": "packages/embeds/react/package.json",
+      "sha256": "860815eadabba47cd170c4dafcbb41a05df2a368397d7548365845cc3248e0a1",
+      "gitBlob": "5634ee40f059637f4662b7daffadccd90c38db58"
+    },
+    {
+      "path": "packages/embeds/react/postcss.config.js",
+      "sha256": "1112c837cee680f7a0759d7441f36208656ccd54e53b73f6cd663e53b423774c",
+      "gitBlob": "07aa434b2bf9fe6f49f075349914806f3216356d"
+    },
+    {
+      "path": "packages/embeds/react/prepublish.js",
+      "sha256": "bfe76c16279cf947d0e8981afb08e001542be888dbc9de6dbdc1135dc4bb79e4",
+      "gitBlob": "1fd813f81c7ac2836d799854efb33dd49d5c7d91"
+    },
+    {
+      "path": "packages/embeds/react/src/embed.tsx",
+      "sha256": "9e24fa4f417c7419261800e3d8c318317281d46ab929ab5745047c66ebcac965",
+      "gitBlob": "9c9b464818173123153e7a63cbdd16ae8c8a7f11"
+    },
+    {
+      "path": "packages/embeds/react/src/example/app.tsx",
+      "sha256": "f05a486e79fa759d120462376bae3aa83fcb864885e38b7bfdc2569742c1afab",
+      "gitBlob": "f694e982d224fa71a161fcc8247f45eaf8801108"
+    },
+    {
+      "path": "packages/embeds/react/src/index.ts",
+      "sha256": "4bfe804b857454625ecd12f416b42088b37096a09728b2d2cdf0943bfddd5ff7",
+      "gitBlob": "12b3c5295ba6446708bd993fa023990be46ecc85"
+    },
+    {
+      "path": "packages/embeds/react/tailwind.config.ts",
+      "sha256": "1fa9f3a01fe7b581cc9c739aaddbd6fcc9edc59f32871d721d550bec392d8e1d",
+      "gitBlob": "5c39ec95b9f441ef3deb342e85726f7e460fbb7d"
+    },
+    {
+      "path": "packages/embeds/react/tsconfig.json",
+      "sha256": "9bea2283d72b38f5c787db0c32a74435eaf628562401de11b36c5aafa40da78c",
+      "gitBlob": "cd6c94d6e8b0c3b34c21ef652ef4d56c64b4a5df"
+    },
+    {
+      "path": "packages/embeds/react/tsup.config.ts",
+      "sha256": "1bf442647432a51cd168cb2f4b81ef897fbe3b9110a33297ead7f507f325f8a3",
+      "gitBlob": "479c8300ccdc996cacadb23fdb8dc366a2e971c7"
+    },
+    {
+      "path": "packages/tsconfig/base.json",
+      "sha256": "a573fe60711cacc73094ceaef11fef4aecc8ea705eba1d1a779a4adc286cd52a",
+      "gitBlob": "39ef7ed441cc45224a44087c6a8f886da2b562ca"
+    },
+    {
+      "path": "packages/tsconfig/nextjs.json",
+      "sha256": "00a13e0bde7ebe55366c1413262c10285172ccee8a1344452299452e295826a3",
+      "gitBlob": "84e51696c78bd3fba9fa05c6a529b36bd2370ec8"
+    },
+    {
+      "path": "packages/tsconfig/package.json",
+      "sha256": "a27c03feee10f9e42e256e0968f6e4ef90768ea909995b99fbc2b663ef4cd6ef",
+      "gitBlob": "499f27bfb356628a4f0a545b5c3969945db2f3cb"
+    },
+    {
+      "path": "packages/tsconfig/react-library.json",
+      "sha256": "a68f152e1608082b74a6160e10e248be6ad8d4b99492bf673f75a754e6e10dda",
+      "gitBlob": "8dff09a32f36ed396fd8dffb0b9676e60ae9d789"
+    }
+  ],
+  "packages": [
+    {
+      "name": "@dub/embed-core",
+      "version": "0.0.16",
+      "publishedGitHead": "e4d358982c5a5b544495fb18386624ef26c8f16e",
+      "sourcePackageVersion": "0.0.15",
+      "integrity": "sha512-CsPVxvC2E8OcgwVUA5zIwy+x+XGP4IaE4LLlMz4GoK24ACn6Hcy7Pn/2vb4HFMSPay8fzd47cEQk/2MXsFQXPQ==",
+      "archive": "https://registry.npmjs.org/@dub/embed-core/-/embed-core-0.0.16.tgz"
+    },
+    {
+      "name": "@dub/embed-react",
+      "version": "0.0.16",
+      "publishedGitHead": "e4d358982c5a5b544495fb18386624ef26c8f16e",
+      "sourcePackageVersion": "0.0.15",
+      "integrity": "sha512-HVo20cEKEX5nRxJsUq6XiUsv2HnmZec2iQbGruWf+Z//OyiUboquaGqOUnNNOmLPdmWONzaYxXYhvAmEjKU1XQ==",
+      "archive": "https://registry.npmjs.org/@dub/embed-react/-/embed-react-0.0.16.tgz"
+    }
+  ]
+}

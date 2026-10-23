@@ -29,10 +29,10 @@ jest.mock('@thallesp/nestjs-better-auth', () => {
   return { AuthModule: AuthModuleStub };
 });
 
-// @inference/tracing is ESM-only, same as better-auth above.
-jest.mock('@inference/tracing', () => ({ setup: jest.fn() }));
-jest.mock('@inference/tracing/ai-sdk', () => ({
-  createAISdkTelemetrySettings: jest.fn(() => ({})),
+jest.mock('./inference-tracing', () => ({
+  initTracing: jest.fn(),
+  shutdownTracing: jest.fn(),
+  getAITelemetry: jest.fn(),
 }));
 
 jest.mock('better-auth/plugins/access', () => ({
@@ -283,8 +283,7 @@ describe('OpenAPI document', () => {
     ): { name: string; schema: SchemaLike } | undefined => {
       const operation = (
         document.paths[routePath] as
-          | { post?: { requestBody?: unknown } }
-          | undefined
+          { post?: { requestBody?: unknown } } | undefined
       )?.post;
       const bodySchema = (
         operation?.requestBody as

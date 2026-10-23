@@ -1,45 +1,41 @@
 {
-  "clearForBundling": false,
-  "profiles": {
-    "app": "d9c708ca469a589fe6a804b1f3e0d18ca437ae9e428d713fbdeccd52a20349e0",
-    "api": "1528ff1e0bff8e39522cb6ce75b46077ed1ef3e0ab38db6e3376683d06cb4a68"
+  "status": "Superseded by scoped delivery in source-scope.json; this is a historical acquisition record, not a publication gate",
+  "acquiredSuperset": {
+    "packages": 3249,
+    "bytes": 1737962404,
+    "bundled": false,
+    "allPackageRightsCleared": false
   },
-  "acquiredPackages": 3249,
-  "acquiredBytes": 1737962404,
-  "reviewed": {},
-  "blockers": [
+  "resolutions": [
     {
       "identity": "@inference/tracing@0.0.21",
       "archiveSHA256": "e63142fd8e3997d07dfa4164f08026000230844340059e809459746422ddbf35",
-      "gitHead": "1bf37ef219da105e4f6f46db9c81ac1ba5689d36",
-      "evidence": "Exact npm metadata has no license or repository; acquired archive contains no LICENSE/COPYING/NOTICE and its README provides no grant. apps/api/src/inference-tracing.ts imports it directly.",
-      "needed": "Recover the exact supplier redistribution/source grant, or approve a scoped replacement. Do not infer permission from npm availability."
+      "decision": "Removed direct imports/dependency. A first-party optional OpenTelemetry adapter replaces it; no unlicensed SDK implementation was copied. Previously deployed use is not retrospectively cleared."
     },
     {
-      "identity": "@dub/embed-core@0.0.16",
-      "archiveSHA256": "67ad18d47d0c45f94ea3be01d76c0b2662b117f3b66f1a733a7fb96e4f6afc7c",
-      "gitHead": "e4d358982c5a5b544495fb18386624ef26c8f16e",
-      "evidence": "Exact npm metadata has no license; archive contains no legal text. Supplier points to dubinc/dub; package-scope terms at this revision remain unreviewed.",
-      "needed": "Recover package-specific terms and matching source at the immutable supplier revision."
+      "identity": "@dub/embed-core@0.0.16 and @dub/embed-react@0.0.16",
+      "decision": "Retained functionality. Published gitHead e4d358982c5a5b544495fb18386624ef26c8f16e has an authoritative root AGPL grant covering these paths outside EE exceptions. Full grant and preferred source retained with blob/hash proofs in vendor-source and legal/source-evidence/dub-embeds.json. Source manifests at that published revision identify 0.0.15; the metadata difference is retained explicitly."
     },
     {
-      "identity": "@dub/embed-react@0.0.16",
-      "archiveSHA256": "8cca3efcf9186066f20e751f77bb8f8cbc45cdb4aa6c10fd4a94b81bf72398dc",
-      "gitHead": "e4d358982c5a5b544495fb18386624ef26c8f16e",
-      "evidence": "Exact npm metadata has no license; archive contains no legal text. apps/app/src/app/(app)/[orgId]/referrals/components/DubReferral.tsx imports it directly.",
-      "needed": "Recover package-specific terms and matching source at the immutable supplier revision."
+      "identity": "@dub/better-auth@0.0.6",
+      "decision": "Unused dependency removed; centralized API BetterAuth authentication is unchanged."
     },
     {
-      "identity": "buffers@0.1.1",
-      "archiveSHA256": "f8de49c60e467005182d9687b5d87775bbcec6385ac63220b7741327441deb6d",
-      "evidence": "No license declaration or legal text in the acquired package; repository points to substack/node-buffers without gitHead.",
-      "needed": "Recover matching original grant or establish artifact-backed exclusion."
+      "identity": "General Sans Variable 2.000",
+      "decision": "Both regular/italic assets removed from active app/portal inputs and replaced with unchanged reviewed Inter/OFL. No font purchase or retroactive grant assumed."
+    },
+    {
+      "identity": "Sharp 0.34.5 / libvips 8.17.3",
+      "decision": "Actual API mappings and exact source/build references recorded in legal/source-evidence/native.json. Unmodified general-purpose dependencies of a company-hosted service; no customer container/native binary delivery identified. No proprietary object-file/relink package imposed on SaaS use alone."
+    },
+    {
+      "identity": "buffers@0.1.1 and unused/build-only candidates",
+      "decision": "No archive bytes are redistributed by this source offer. Public exact registry URLs/integrity remain build inputs under original supplier terms; no new permission or blanket MIT/AGPL grant is invented. They do not gate publication of the modified Comp source."
     }
   ],
-  "fontAssetsPendingReview": [
-    {"path": "apps/app/public/fonts/GeneralSans-Variable.ttf", "sha256": "4b2539d9ed3367e8f55f7ddd369ab13e17bb279ff2eb7fdca6c713af13d4df84"},
-    {"path": "apps/app/public/fonts/GeneralSans-VariableItalic.ttf", "sha256": "4aa0c20dbb593ad82b41f090fbbc8efb1bfe3df85ca895c08092f77d467fea60"}
+  "historicalFontHashes": [
+    "4b2539d9ed3367e8f55f7ddd369ab13e17bb279ff2eb7fdca6c713af13d4df84",
+    "4aa0c20dbb593ad82b41f090fbbc8efb1bfe3df85ca895c08092f77d467fea60"
   ],
-  "fontEvidence": "Embedded names identify General Sans Variable 2.000, copyright 2017-2021 Indian Type Foundry, and https://fontshare.com/terms. Name ID 13 requires identifying the fonts and crediting ITF in design/production credits. Full package/source-bundle permission and delivered credit placement remain unverified; the terms endpoint serves a JavaScript shell. No AGPL grant is inferred for these fonts.",
-  "remainingReview": "Preserve all supplied terms and assess actual source/build/runtime inclusion before bundling the entire lock superset. FSL build tools, native libvips/compiled dependencies and supplier-source companions need their own scope-specific decisions. @dub/better-auth and botid declare MIT in README; missing standalone text is not treated as absence of a declaration. No blanket AGPL grant is asserted over supplier packages."
+  "remainingBoundary": "Reassess applicable native/container conveyance obligations before customer/on-prem binary delivery. This record does not clear historical copies or unrelated estate applications."
 }

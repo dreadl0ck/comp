@@ -89,7 +89,6 @@
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
         "@dub/analytics": "^0.0.27",
-        "@dub/better-auth": "^0.0.6",
         "@dub/embed-react": "^0.0.16",
         "@hookform/resolvers": "^5.1.1",
         "@mendable/firecrawl-js": "^1.24.0",
@@ -1016,8 +1015,6 @@
     "@dotenvx/primitives": ["@dotenvx/primitives@0.8.0", "", {}, "sha512-VYJy0uhFm9zTJ1TxBaW/pA8bjbOM/OttaNMwZ1RHG4JKyRG7DhSdiqD1ipQoAyoD22olUtxbP78W9xY3Wd11bg=="],
 
     "@dub/analytics": ["@dub/analytics@0.0.27", "", { "dependencies": { "server-only": "^0.0.1" } }, "sha512-TbLr+sKWiBsMw1GOLpduZI7skXmrLwZlEoVoHyxq66RvMk/5Fl84QoenlhjdxaX1rlHAkWCcjcbAYcCN7skoKw=="],
-
-    "@dub/better-auth": ["@dub/better-auth@0.0.6", "", { "dependencies": { "zod": "^3.24.4" } }, "sha512-l7k1PVro6Ib6buBvB/ONlHl1xBH/nU0nbF9m0NawMYNeGhJwmw73JTg6HbhuBgfSRuzZUhI4jRhnldPzejWubg=="],
 
     "@dub/embed-core": ["@dub/embed-core@0.0.16", "", { "dependencies": { "@floating-ui/dom": "^1.6.12" } }, "sha512-CsPVxvC2E8OcgwVUA5zIwy+x+XGP4IaE4LLlMz4GoK24ACn6Hcy7Pn/2vb4HFMSPay8fzd47cEQk/2MXsFQXPQ=="],
 
@@ -5442,8 +5439,6 @@
     "@dotenvx/dotenvx/open": ["open@8.4.2", "", { "dependencies": { "define-lazy-prop": "^2.0.0", "is-docker": "^2.1.1", "is-wsl": "^2.2.0" } }, "sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ=="],
 
     "@dotenvx/dotenvx/which": ["which@4.0.0", "", { "dependencies": { "isexe": "^3.1.1" }, "bin": { "node-which": "bin/which.js" } }, "sha512-GlaYyEb07DPxYCKhKzplCWBJtvxZcZMrL+4UkrTSJHHPyZU4mYYTv3qaOe77H7EODLSSopAUFAc6W8U4yqvscg=="],
-
-    "@dub/better-auth/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@effect/platform/@opentelemetry/semantic-conventions": ["@opentelemetry/semantic-conventions@1.43.0", "", {}, "sha512-eSYWTm620tTk45EKSedaUL8MFYI8hW164hIXsgIHyxu3VobUB3fFCu5t0hQby6OoWRPsG1KkKUG2M5UadiLiVg=="],
 

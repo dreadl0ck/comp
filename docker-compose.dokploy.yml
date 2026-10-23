@@ -550,8 +550,8 @@ services:
       args:
         COMP_SOURCE_REVISION: ${COMP_SOURCE_REVISION:?publish matching source first}
         COMP_SOURCE_SHA256: ${COMP_SOURCE_SHA256:?publish matching source first}
-      args:
         NEXT_PUBLIC_BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
+        NEXT_PUBLIC_API_URL: ${PUBLIC_URL}
     volumes:
       - comp-pgcerts:/certs:ro
     environment:

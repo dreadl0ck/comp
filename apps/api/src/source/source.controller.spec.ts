@@ -44,6 +44,14 @@ describe('SourceController', () => {
       archive: '/v1/source/archive',
     });
   });
+  it('provides an authenticated human-readable source page without additional terms', async () => {
+    const html = await new SourceController().page();
+    expect(html).toContain('href="/v1/source/archive"');
+    expect(html).toContain(revision);
+    expect(html).toContain(sha256);
+    expect(html).toContain('No NDA');
+    expect(html).toContain('without warranty');
+  });
   it('rejects tampered source', async () => {
     writeFileSync(join(directory, `${revision}.tar.gz`), 'tampered');
     await expect(new SourceController().metadata()).rejects.toThrow(

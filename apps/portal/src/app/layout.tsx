@@ -1,9 +1,8 @@
 import { auth } from '@/app/lib/auth';
 import { env } from '@/env.mjs';
 import { initializeServer } from '@trycompai/analytics/server';
-import { cn } from '@trycompai/ui/cn';
-import './globals.css';
 import '@trycompai/design-system/globals.css';
+import { cn } from '@trycompai/ui/cn';
 import { GeistMono } from 'geist/font/mono';
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
@@ -11,6 +10,7 @@ import { headers } from 'next/headers';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { Suspense } from 'react';
 import { Toaster } from 'sonner';
+import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
@@ -67,7 +67,8 @@ export const viewport = {
 };
 
 const font = localFont({
-  src: '../../public/fonts/GeneralSans-Variable.ttf',
+  src: '../../public/fonts/Inter.woff2',
+  weight: '400 700',
   display: 'swap',
   variable: '--font-general-sans',
 });
@@ -102,6 +103,9 @@ export default async function Layout(props: { children: React.ReactNode }) {
           </NuqsAdapter>
         </Suspense>
         <Toaster richColors />
+        <footer style={{ padding: '0.5rem 1rem' }}>
+          <a href={`${env.NEXT_PUBLIC_API_URL}/v1/source/page`}>Modified Comp source (AGPLv3)</a>
+        </footer>
       </body>
     </html>
   );

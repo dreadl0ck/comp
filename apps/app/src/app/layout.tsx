@@ -70,7 +70,8 @@ export const viewport = {
 };
 
 const font = localFont({
-  src: '/../../public/fonts/GeneralSans-Variable.ttf',
+  src: '/../../public/fonts/Inter.woff2',
+  weight: '400 700',
   display: 'swap',
   variable: '--font-general-sans',
 });

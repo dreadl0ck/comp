@@ -1,0 +1,3 @@
+vendor-source/** -text
+apps/app/public/fonts/Inter-OFL.txt -text
+apps/portal/public/fonts/Inter-OFL.txt -text
