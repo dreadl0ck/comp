@@ -189,7 +189,7 @@ RUN cd apps/app && SKIP_ENV_VALIDATION=true bun run build:docker
 # =============================================================================
 # STAGE 4: App Production
 # =============================================================================
-FROM node:22-alpine AS app
+FROM node:22-alpine3.24@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS app
 ARG COMP_SOURCE_REVISION
 ARG COMP_SOURCE_SHA256
 ENV COMP_SOURCE_REVISION=$COMP_SOURCE_REVISION COMP_SOURCE_SHA256=$COMP_SOURCE_SHA256
@@ -261,7 +261,7 @@ RUN cd apps/portal && SKIP_ENV_VALIDATION=true bun run build:docker
 # =============================================================================
 # STAGE 6: Portal Production
 # =============================================================================
-FROM node:22-alpine AS portal
+FROM node:22-alpine3.24@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS portal
 ARG COMP_SOURCE_REVISION
 ARG COMP_SOURCE_SHA256
 ENV COMP_SOURCE_REVISION=$COMP_SOURCE_REVISION COMP_SOURCE_SHA256=$COMP_SOURCE_SHA256

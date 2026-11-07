@@ -1,6 +1,11 @@
 services:
   source:
-    image: nginx:1.31.5-alpine
+    image: comp-source:nginx-1.31.5-alpine3.24.4
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM nginx:1.31.5-alpine3.24@sha256:72ba65eb42c10344912a84ff42408db7d34f2feb642204570ab8fc5ffd29f1d3
+        RUN apk upgrade --no-cache && test "$(cat /etc/alpine-release)" = 3.24.4
     restart: unless-stopped
     user: '101:101'
     cap_drop: [ALL]
