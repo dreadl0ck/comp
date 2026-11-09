@@ -30,6 +30,13 @@
 - Security penetration tests integration:
   - `src/security-penetration-tests/README.md`
 
+Questionnaire generation in `src/trigger/questionnaire/answer-question-helpers.ts`
+returns `answered`, `insufficient_evidence` or `provider_error`. Only the exact
+`N/A - no evidence found` sentinel means model abstention; qualified answers
+containing `N/A` remain intact. Provider/retrieval failures stop saving rather
+than becoming missing evidence. Check with
+`bun run test --runInBand src/trigger/questionnaire/answer-disposition.spec.ts src/trigger/questionnaire/answer-question-helpers.spec.ts`.
+
 ## Project setup
 
 ```bash

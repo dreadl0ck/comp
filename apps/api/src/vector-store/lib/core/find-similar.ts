@@ -54,8 +54,7 @@ export async function findSimilarContent(
   organizationId: string,
 ): Promise<SimilarContentResult[]> {
   if (!vectorIndex) {
-    logger.warn('Upstash Vector is not configured, returning empty results');
-    return [];
+    throw new Error('Upstash Vector is not configured');
   }
 
   if (!question || question.trim().length === 0) {
@@ -140,8 +139,7 @@ export async function findSimilarContentBatch(
   organizationId: string,
 ): Promise<SimilarContentResult[][]> {
   if (!vectorIndex) {
-    logger.warn('Upstash Vector is not configured, returning empty results');
-    return questions.map(() => []);
+    throw new Error('Upstash Vector is not configured');
   }
 
   if (questions.length === 0) {
@@ -189,7 +187,7 @@ export async function findSimilarContentBatch(
             question: questions[index]?.substring(0, 50),
             error: error instanceof Error ? error.message : 'Unknown error',
           });
-          return { index, results: [] };
+          throw error;
         }
       }),
     );

@@ -113,6 +113,9 @@ export async function answerQuestion(
       payload.question,
       payload.organizationId,
     );
+    if (result.status === 'provider_error') {
+      throw new Error('Questionnaire evidence retrieval or answer generation failed');
+    }
 
     // Update metadata with this answer immediately
     // This allows frontend to show answers as they complete individually
@@ -123,6 +126,7 @@ export async function answerQuestion(
     withMetadata(() => {
       metadata.set(`answer_${payload.questionIndex}`, metadataAnswer);
       metadata.set(`question_${payload.questionIndex}_status`, 'completed');
+      metadata.set(`question_${payload.questionIndex}_disposition`, result.status);
       metadata.increment('questionsCompleted', 1);
       metadata.increment('questionsRemaining', -1);
     });
@@ -147,6 +151,7 @@ export async function answerQuestion(
     withMetadata(() => {
       metadata.set(`answer_${payload.questionIndex}`, failedAnswerData);
       metadata.set(`question_${payload.questionIndex}_status`, 'completed');
+      metadata.set(`question_${payload.questionIndex}_disposition`, 'provider_error');
       metadata.increment('questionsCompleted', 1);
       metadata.increment('questionsRemaining', -1);
     });

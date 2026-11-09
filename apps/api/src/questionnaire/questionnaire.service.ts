@@ -674,6 +674,9 @@ export class QuestionnaireService {
       questionsToAnswer,
       organizationId,
     );
+    if (batchResults.some((result) => result.status === 'provider_error')) {
+      throw new Error('Questionnaire evidence retrieval or answer generation failed');
+    }
 
     // Map batch results
     const results: AnswerQuestionResult[] = questionsNeedingAnswers.map(
