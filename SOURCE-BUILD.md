@@ -37,6 +37,7 @@ App/portal builds accept `NEXT_PUBLIC_BETTER_AUTH_URL`, `NEXT_PUBLIC_API_URL` an
 localhost origins for independent builds. Published images receive
 `COMP_SOURCE_REVISION` and `COMP_SOURCE_SHA256` as build arguments; mount the
 matching archive directory read-only at `/opt/comp-source` before startup.
+The API preloads `apps/api/register-paths.cjs` to resolve compiled `@db` and `@/*` imports; its runtime image build checks both aliases.
 
 `docker-compose.dokploy.yml` supplies build/install/startup commands and variable
 names for PostgreSQL, Redis and storage. Supply fresh local credentials for

@@ -130,6 +130,7 @@
         "sharp": "^0.35.5",
         "stripe": "^20.4.0",
         "swagger-ui-express": "^5.0.1",
+        "tsconfig-paths": "^4.2.0",
         "zod": "^4.6.7",
       },
       "devDependencies": {
@@ -159,7 +160,6 @@
         "ts-jest": "^29.2.5",
         "ts-loader": "^9.5.2",
         "ts-node": "^10.9.2",
-        "tsconfig-paths": "^4.2.0",
         "typescript": "^5.8.3",
         "typescript-eslint": "^8.20.0",
       },

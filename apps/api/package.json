@@ -125,6 +125,7 @@
         "sharp": "^0.35.5",
         "stripe": "^20.4.0",
         "swagger-ui-express": "^5.0.1",
+        "tsconfig-paths": "^4.2.0",
         "zod": "^4.6.7"
     },
     "devDependencies": {
@@ -154,7 +155,6 @@
         "ts-jest": "^29.2.5",
         "ts-loader": "^9.5.2",
         "ts-node": "^10.9.2",
-        "tsconfig-paths": "^4.2.0",
         "typescript": "^5.8.3",
         "typescript-eslint": "^8.20.0"
     },
@@ -200,7 +200,7 @@
         "db:generate": "bun run db:getschema && bunx prisma generate --schema=prisma/schema",
         "db:getschema": "find prisma/schema -name '*.prisma' ! -name 'schema.prisma' -delete && find ../../packages/db/prisma/schema -name '*.prisma' ! -name 'schema.prisma' -exec cp {} prisma/schema/ \\;",
         "db:migrate": "cd ../../packages/db && bunx prisma migrate dev && cd ../../apps/api",
-        "deploy:trigger-prod": "npx trigger.dev@4.4.3 deploy",
+        "deploy:trigger-prod": "npx trigger.dev@4.8.8 deploy",
         "dev": "bunx concurrently --kill-others --names \"nest,trigger\" --prefix-colors \"green,blue\" \"nest start --watch\" \"trigger dev\"",
         "dev:nest": "nest start --watch",
         "dev:no-trigger": "nest start --watch",
