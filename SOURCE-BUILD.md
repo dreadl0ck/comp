@@ -20,7 +20,8 @@ copying, modification and redistribution rights without an NDA or code-host acco
 ## Build
 
 Use the pinned Bun 1.4.5 Docker builder. `build-locks/app.bun.lock` is shared by
-app/portal; `build-locks/api.bun.lock` covers the API. Both installs are frozen.
+app/portal; `build-locks/api.bun.lock` covers the API. Both installs are frozen
+and explicitly hoisted, matching the Docker stages' root `node_modules` copies.
 `refresh-build-locks.py` regenerates only dependency-profile exports and checks
 their package versions/integrity against root `bun.lock`.
 
