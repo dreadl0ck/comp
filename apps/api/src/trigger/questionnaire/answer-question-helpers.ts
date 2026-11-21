@@ -14,11 +14,14 @@ import {
   ANSWER_MODEL,
   ANSWER_SYSTEM_PROMPT,
 } from '@/questionnaire/utils/constants';
+import { isNoEvidenceAnswer, type AnswerStatus } from './answer-disposition';
 
 export interface AnswerWithSources {
+  status: AnswerStatus;
   answer: string | null;
   sources: Array<{
     sourceType: string;
+    sourceId?: string;
     sourceName?: string;
     score: number;
   }>;
@@ -112,18 +115,6 @@ Answer the question based ONLY on the provided context, using first person plura
 }
 
 /**
- * Checks if an answer indicates no evidence was found
- */
-function isNoEvidenceAnswer(answer: string): boolean {
-  const lowerAnswer = answer.toLowerCase();
-  return (
-    lowerAnswer.includes('n/a') ||
-    lowerAnswer.includes('no evidence') ||
-    lowerAnswer.includes('not found in the context')
-  );
-}
-
-/**
  * Generates an answer for a question using RAG (Retrieval-Augmented Generation)
  */
 export async function generateAnswerWithRAG(
@@ -151,7 +142,7 @@ export async function generateAnswerWithRAG(
         question: question.substring(0, 100),
         organizationId,
       });
-      return { answer: null, sources: [] };
+      return { status: 'insufficient_evidence', answer: null, sources: [] };
     }
 
     // Extract and deduplicate sources
@@ -181,7 +172,7 @@ export async function generateAnswerWithRAG(
         answer: answer.substring(0, 100),
         sourcesCount: sources.length,
       });
-      return { answer: null, sources: [] };
+      return { status: 'insufficient_evidence', answer: null, sources: [] };
     }
 
     // Safety check: if we have an answer but no sources, log a warning
@@ -195,15 +186,15 @@ export async function generateAnswerWithRAG(
         },
       );
     }
-
-    return { answer, sources };
+    if (!answer) throw new Error('Empty questionnaire answer');
+    return { status: 'answered', answer, sources };
   } catch (error) {
     logger.error('Failed to generate answer with RAG', {
       question: question.substring(0, 100),
       organizationId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    return { answer: null, sources: [] };
+    return { status: 'provider_error', answer: null, sources: [] };
   }
 }
 
@@ -266,8 +257,8 @@ export async function generateAnswerWithRAGBatch(
       organizationId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    // Return empty results for all questions on failure
-    return questions.map(() => ({ answer: null, sources: [] }));
+    // Preserve the failure disposition for every question in this batch.
+    return questions.map<AnswerWithSources>(() => ({ status: 'provider_error', answer: null, sources: [] }));
   }
 }
 
@@ -283,7 +274,7 @@ export async function generateAnswerFromContent(
   try {
     // If no relevant content found, return null
     if (similarContent.length === 0) {
-      return { answer: null, sources: [] };
+      return { status: 'insufficient_evidence', answer: null, sources: [] };
     }
 
     // Extract and deduplicate sources
@@ -295,15 +286,15 @@ export async function generateAnswerFromContent(
 
     // Check if the answer indicates no evidence
     if (isNoEvidenceAnswer(answer)) {
-      return { answer: null, sources: [] };
+      return { status: 'insufficient_evidence', answer: null, sources: [] };
     }
-
-    return { answer, sources };
+    if (!answer) throw new Error('Empty questionnaire answer');
+    return { status: 'answered', answer, sources };
   } catch (error) {
     logger.error('Failed to generate answer from content', {
       question: question.substring(0, 100),
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    return { answer: null, sources: [] };
+    return { status: 'provider_error', answer: null, sources: [] };
   }
 }

@@ -47,7 +47,7 @@
     "@aws-sdk/client-s3-control": "^3.943.0",
     "@aws-sdk/client-securityhub": "^3.943.0",
     "@aws-sdk/client-sts": "^3.943.0",
-    "zod": "^4.0.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.3",

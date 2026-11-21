@@ -1,6 +1,76 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/v1/source": {
+      "get": {
+        "description": "All authenticated users may obtain the deployed modified AGPL source without an additional role, NDA or repository access. Download using the same authentication at /v1/source/archive.",
+        "operationId": "SourceController_metadata_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "revision",
+                    "sha256",
+                    "license",
+                    "archive"
+                  ],
+                  "properties": {
+                    "revision": {
+                      "type": "string"
+                    },
+                    "sha256": {
+                      "type": "string"
+                    },
+                    "license": {
+                      "type": "string"
+                    },
+                    "archive": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get matching modified Comp source",
+        "tags": [
+          "Source"
+        ]
+      }
+    },
+    "/v1/source/archive": {
+      "get": {
+        "description": "Download the full corresponding modified Comp source using existing session, API-key or service-token authentication. No additional source permission is required.",
+        "operationId": "SourceController_download_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Download matching modified Comp source",
+        "tags": [
+          "Source"
+        ],
+        "x-speakeasy-mcp": {
+          "disabled": true
+        }
+      }
+    },
     "/v1/organization": {
       "get": {
         "description": "Retrieve organization profile data used to personalize compliance workflows, Trust Center branding, API automation, and audit readiness reporting.",
@@ -26666,6 +26736,32 @@
         },
         "x-speakeasy-mcp": {
           "name": "undo-vendor-revocation"
+        }
+      }
+    },
+    "/v1/source/page": {
+      "get": {
+        "description": "Authenticated source page for all roles, including portal-only users. Download matching modified source without a separate code-host account or source permission.",
+        "operationId": "SourceController_page_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "View the matching Comp source offer",
+        "tags": [
+          "Source"
+        ],
+        "x-speakeasy-mcp": {
+          "disabled": true
         }
       }
     }

@@ -5,6 +5,7 @@ jest.mock('./generate-embedding', () => ({
   generateEmbedding: jest.fn(),
   batchGenerateEmbeddings: jest.fn(),
 }));
+jest.mock('../../logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } }));
 
 import { vectorIndex } from './client';
 import {
@@ -104,5 +105,21 @@ describe('findSimilarContentBatch: result cap (CS-594)', () => {
     expect(perQuestion.length).toBeGreaterThan(0);
     // Highest-scoring chunk preserved.
     expect(perQuestion[0].score).toBe(0.9);
+  });
+});
+
+describe('batch retrieval failure semantics', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('keeps genuinely empty search results', async () => {
+    jest.mocked(batchGenerateEmbeddings).mockResolvedValue([[1, 0]]);
+    jest.mocked(vectorIndex!.query).mockResolvedValue([]);
+    expect(await findSimilarContentBatch(['question'], 'fixture-org')).toEqual([[]]);
+  });
+
+  it('propagates a query failure rather than inventing an empty result', async () => {
+    jest.mocked(batchGenerateEmbeddings).mockResolvedValue([[1, 0]]);
+    jest.mocked(vectorIndex!.query).mockRejectedValue(new Error('vector service timeout'));
+    await expect(findSimilarContentBatch(['question'], 'fixture-org')).rejects.toThrow('vector service timeout');
   });
 });

@@ -202,10 +202,10 @@ describe('EmployeeBackgroundCheck — V1 two-paths', () => {
 
     await user.click(screen.getByRole('radio', { name: /Mark as exempt/i }));
 
-    // open Select dropdown and pick a reason via keyboard
+    // Wait for the portalled options after opening the select.
     const trigger = screen.getByRole('combobox');
     await user.click(trigger);
-    await user.click(screen.getByRole('option', { name: /Local law prohibits check/i }));
+    await user.click(await screen.findByRole('option', { name: /Local law prohibits check/i }));
 
     await user.click(screen.getByRole('button', { name: /Confirm exemption/i }));
 

@@ -4,7 +4,11 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  plugins: [tsconfigPaths(), react()],
+  plugins: [
+    tsconfigPaths({ projects: [resolve(import.meta.dirname, './tsconfig.json')] }),
+    react(),
+  ],
+  oxc: { jsx: { runtime: 'automatic' } },
   test: {
     environment: 'jsdom',
     globals: true,
@@ -31,8 +35,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src'),
-      '@trycompai/billing': resolve(__dirname, '../../packages/billing/src/index.ts'),
+      '@': resolve(import.meta.dirname, './src'),
+      '@trycompai/billing': resolve(import.meta.dirname, '../../packages/billing/src/index.ts'),
     },
   },
 });

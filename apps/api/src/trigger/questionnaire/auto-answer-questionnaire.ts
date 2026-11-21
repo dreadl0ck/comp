@@ -86,6 +86,9 @@ export const autoAnswerQuestionnaireTask = task({
       toAnswer.map((q) => q.question),
       organizationId,
     );
+    if (results.some((result) => result.status === 'provider_error')) {
+      throw new Error('Questionnaire answer generation failed; existing answers were preserved');
+    }
 
     metadata.set('status', 'saving_answers').set('progress', 80);
     let answered = 0;

@@ -1,0 +1,612 @@
+# =============================================================================
+# Comp AI — Amsterdam Technologies self-hosted deployment (Dokploy)
+# =============================================================================
+# Deliberately a SEPARATE file from upstream docker-compose.yml so that
+# rebasing onto new upstream tags stays a trivial operation. Only the
+# Dockerfile carries in-place patches (both marked AT-PATCH).
+#
+# Origin design: ONE public origin, per workstream W13.
+#   https://compliance.amsterdam-technologies.com/     -> app   :3000
+#   https://compliance.amsterdam-technologies.com/v1   -> api   :3333
+# The API is what @trycompai/mcp-server talks to; its SDK appends /v1 to the
+# base URL, and apps/app builds its own API calls the same way. So a path
+# route on the shared host serves both without inventing an api.* subdomain.
+#
+# portal is built and run but intentionally has NO domain attached.
+#
+# Required variables, supplied by Dokploy's Environment field (never committed):
+#   POSTGRES_PASSWORD      postgres superuser password
+#   DATABASE_URL           postgresql://comp:<pw>@postgres:5432/comp?sslmode=disable
+#                          sslmode=disable is deliberate and load-bearing.
+#                          Three consumers read this one string differently:
+#                            - prisma migrate CLI: honours sslmode.
+#                            - prisma/seed/seed.ts: builds its own PrismaPg
+#                              from the raw string, and verifies the cert, so
+#                              sslmode=require fails on our self-signed one
+#                              (P1011).
+#                            - packages/db/src/client.ts: STRIPS sslmode and
+#                              forces TLS for any non-localhost host.
+#                          Postgres serves TLS while still accepting plaintext,
+#                          so disable is the only value satisfying all three.
+#                          Net effect: the long-lived app/api/portal
+#                          connections are TLS; the two one-shot jobs are
+#                          plaintext on a private docker network.
+#   AUTH_SECRET            openssl rand -base64 32
+#   SECRET_KEY             openssl rand -base64 32
+#   REVALIDATION_SECRET    openssl rand -base64 32
+#   SERVICE_TOKEN_PORTAL   openssl rand -base64 32
+#   SERVICE_TOKEN_TRIGGER  openssl rand -base64 32
+#   PUBLIC_URL             https://compliance.amsterdam-technologies.com
+#   PUBLIC_PORTAL_URL      portal origin (no domain attached yet)
+# Optional:
+#   ANTHROPIC_API_KEY      reuse the estate key; Comp supports Anthropic
+#   TRIGGER_SECRET_KEY     leave unset to run the no-background-jobs probe
+# =============================================================================
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+    compress: 'true'
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+  logging: *default-logging
+
+services:
+  # ---------------------------------------------------------------------------
+  # Postgres. Embedded in the stack rather than a Dokploy-managed database
+  # because Dokploy's DB-backup scheduler cannot see compose-embedded services
+  # (the same W1.4 shape as Umami). Backups are therefore a dokploy-server
+  # schedule, not native — see ../server/schedules/.
+  # ---------------------------------------------------------------------------
+  # TLS is NOT optional here, and not merely good practice.
+  # packages/db/src/ssl-config.ts resolveSslConfig() strips sslmode from the
+  # connection string and forces TLS for every host that is not literally
+  # localhost/127.0.0.1/::1. Our host is the compose service name `postgres`,
+  # so a plaintext server is rejected with
+  #     Error opening a TLS connection: The server does not support SSL
+  # Comp's docs saying "PostgreSQL with SSL" describe an enforced constraint,
+  # not a recommendation. Serving TLS satisfies it without patching the
+  # library, and encrypts the link carrying the entire compliance record --
+  # worth having while docs/ENCRYPTION.md still reports no encryption at rest.
+  #
+  # Debian postgres:17, not -alpine: the alpine image has no openssl CLI.
+  # The cert is self-signed and regenerated per boot (it lives outside the
+  # data volume); clients set PRISMA_ALLOW_INSECURE_TLS=1 so the chain is not
+  # verified. That is encryption without authentication -- acceptable only
+  # because both ends sit on a private docker network.
+  postgres:
+    <<: *hardening
+    image: postgres:17
+    environment:
+      POSTGRES_USER: comp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: comp
+    volumes:
+      - comp-postgres:/var/lib/postgresql/data
+      - comp-pgcerts:/certs
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        CERTDIR=/certs
+        mkdir -p "$$CERTDIR"
+        if [ ! -f "$$CERTDIR/server.key" ]; then
+          # Own CA, then a server cert signed by it. A bare self-signed cert
+          # is not enough: several Prisma clients here pin
+          # { checkServerIdentity: () => undefined }, which skips the HOSTNAME
+          # check but still validates the CHAIN. Publishing the CA to the
+          # clients via NODE_EXTRA_CA_CERTS makes that chain check pass, so we
+          # get verified TLS rather than switching verification off.
+          openssl req -new -x509 -days 3650 -nodes \
+            -subj "/CN=comp-postgres-ca" \
+            -keyout "$$CERTDIR/ca.key" -out "$$CERTDIR/ca.crt" >/dev/null 2>&1
+          openssl req -new -nodes -subj "/CN=postgres" \
+            -keyout "$$CERTDIR/server.key" -out "$$CERTDIR/server.csr" >/dev/null 2>&1
+          openssl x509 -req -in "$$CERTDIR/server.csr" \
+            -CA "$$CERTDIR/ca.crt" -CAkey "$$CERTDIR/ca.key" -CAcreateserial \
+            -days 3650 -out "$$CERTDIR/server.crt" >/dev/null 2>&1
+          rm -f "$$CERTDIR/server.csr"
+        fi
+        chmod 600 "$$CERTDIR/server.key" "$$CERTDIR/ca.key"
+        chmod 644 "$$CERTDIR/server.crt" "$$CERTDIR/ca.crt"
+        chown postgres:postgres "$$CERTDIR/server.key" "$$CERTDIR/server.crt"
+        exec docker-entrypoint.sh postgres \
+          -c ssl=on \
+          -c ssl_cert_file="$$CERTDIR/server.crt" \
+          -c ssl_key_file="$$CERTDIR/server.key"
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U comp -d comp']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    mem_limit: 2g
+
+  # ---------------------------------------------------------------------------
+  # MinIO: S3-compatible object storage for evidence, attachments, org assets.
+  #
+  # Not optional. apps/api/src/config/aws.config.ts validates at BOOT and
+  # throws unless APP_AWS_ACCESS_KEY_ID / SECRET_ACCESS_KEY / BUCKET_NAME are
+  # all set, so the api container crash-loops without object storage. Comp's
+  # env reference lists these as "conditional", which is wrong for the api.
+  #
+  # Self-hosted rather than Cloudflare R2 or AWS so that evidence -- which is
+  # the sensitive part of a compliance record -- stays on infrastructure that
+  # is already in the ROPA, and adds no new processor.
+  # ---------------------------------------------------------------------------
+  minio:
+    <<: *hardening
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+    volumes:
+      - comp-minio:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'mc ready local || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    mem_limit: 1g
+
+  # One-shot: create the four buckets Comp expects. Idempotent.
+  minio-init:
+    # Includes mc RELEASE.2025-04-16T18-13-26Z; its standalone image is unavailable.
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        for b in comp-evidence comp-org-assets comp-questionnaire comp-knowledge-base; do
+          mc mb --ignore-existing "local/$$b"
+        done
+        echo "minio buckets ready"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    restart: 'no'
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Redis + an Upstash-compatible REST shim.
+  #
+  # packages/kv talks to Upstash over REST, and Comp stores real cross-request
+  # state there -- most importantly onboarding setup sessions, written by the
+  # /setup route handler and read back by the /setup/[setupId] page.
+  #
+  # MOCK_REDIS is not a substitute. It is an in-memory Map created at module
+  # scope, and Next bundles packages/kv separately into each server chunk, so
+  # the route handler and the page each get their own Map. The session written
+  # by one is invisible to the other and onboarding redirect-loops forever.
+  #
+  # serverless-redis-http gives the Upstash REST API over a plain Redis, so no
+  # Upstash account (and no new US processor) is needed.
+  # ---------------------------------------------------------------------------
+  redis:
+    <<: *hardening
+    image: redis:7.4.12-alpine3.21@sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b
+    command: ['redis-server', '--save', '60', '1', '--appendonly', 'no']
+    volumes:
+      - comp-redis:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    mem_limit: 512m
+
+  srh:
+    <<: *hardening
+    image: hiett/serverless-redis-http:latest
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: ${SRH_TOKEN:?SRH_TOKEN is required}
+      SRH_CONNECTION_STRING: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    mem_limit: 256m
+
+  # ---------------------------------------------------------------------------
+  # One-shot: schema migrations (prisma migrate deploy — idempotent).
+  # ---------------------------------------------------------------------------
+  migrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+      args:
+        COMP_SOURCE_REVISION: ${COMP_SOURCE_REVISION:?publish matching source first}
+        COMP_SOURCE_SHA256: ${COMP_SOURCE_SHA256:?publish matching source first}
+    volumes:
+      - comp-pgcerts:/certs:ro
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      # Trust the postgres CA generated by the postgres service. This is what
+      # makes chain validation succeed for the clients that force TLS, and is
+      # why PRISMA_ALLOW_INSECURE_TLS is no longer needed: verified TLS beats
+      # unverified. apps/api builds its Prisma client without honouring that
+      # flag at all, so trusting the CA is the only approach that covers every
+      # client uniformly.
+      NODE_EXTRA_CA_CERTS: /certs/ca.crt
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # One-shot: reference data — 23 frameworks (ISO 27001:2022 and GDPR among
+  # them), 204 control templates, 1334 requirements, 52 policy templates.
+  # Upsert-based, so safe to re-run.
+  #
+  # AT-PATCH: upstream runs `seed.js`; only `seed.ts` exists in the tree
+  # (packages/db's own script is `bun prisma/seed/seed.ts`). Upstream's
+  # command fails with module-not-found, so no framework data ever lands.
+  # ---------------------------------------------------------------------------
+  seeder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+      args:
+        COMP_SOURCE_REVISION: ${COMP_SOURCE_REVISION:?publish matching source first}
+        COMP_SOURCE_SHA256: ${COMP_SOURCE_SHA256:?publish matching source first}
+    volumes:
+      - comp-pgcerts:/certs:ro
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      # Trust the postgres CA generated by the postgres service. This is what
+      # makes chain validation succeed for the clients that force TLS, and is
+      # why PRISMA_ALLOW_INSECURE_TLS is no longer needed: verified TLS beats
+      # unverified. apps/api builds its Prisma client without honouring that
+      # flag at all, so trusting the CA is the only approach that covers every
+      # client uniformly.
+      NODE_EXTRA_CA_CERTS: /certs/ca.crt
+    # The Prisma client is generated from the local schema at image build time
+    # (see Dockerfile migrator stage), so the seed just runs.
+    command: ['bun', 'packages/db/prisma/seed/seed.ts']
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    restart: 'no'
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Main application.
+  # ---------------------------------------------------------------------------
+  app:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+      args:
+        COMP_SOURCE_REVISION: ${COMP_SOURCE_REVISION:?publish matching source first}
+        COMP_SOURCE_SHA256: ${COMP_SOURCE_SHA256:?publish matching source first}
+        # All NEXT_PUBLIC_* are INLINED AT BUILD TIME by Next. Changing any of
+        # these is a rebuild, never a restart.
+        NEXT_PUBLIC_BETTER_AUTH_URL: ${PUBLIC_URL}
+        NEXT_PUBLIC_PORTAL_URL: ${PUBLIC_PORTAL_URL}
+        NEXT_PUBLIC_API_URL: ${PUBLIC_URL}
+        NEXT_PUBLIC_SELF_HOSTED: 'true'
+    volumes:
+      - comp-pgcerts:/certs:ro
+      - /root/comp-source:/opt/comp-source:ro
+    environment:
+      # Next standalone honours HOSTNAME; pin it so Traefik can reach the
+      # container over dokploy-network rather than loopback only.
+      HOSTNAME: 0.0.0.0
+      PORT: '3000'
+      # Node sizes its heap from the cgroup and settled on ~1.5 GB, where the
+      # app died with "Ineffective mark-compacts near heap limit" while
+      # rendering /auth. Give it real headroom under the raised mem_limit.
+      NODE_OPTIONS: --max-old-space-size=3072
+      UPSTASH_REDIS_REST_URL: http://srh:80
+      UPSTASH_REDIS_REST_TOKEN: ${SRH_TOKEN}
+      DATABASE_URL: ${DATABASE_URL}
+      # apps/app/prisma/client.ts carries its own copy of the ssl-config logic
+      # and forces verified TLS for any non-localhost host, so /api/health's
+      # `SELECT 1` fails against the self-signed postgres cert with
+      # "Error opening a TLS connection: self-signed certificate". The route
+      # then 500s, the container goes unhealthy, and Traefik drops it -> 404.
+      # Trust the postgres CA generated by the postgres service. This is what
+      # makes chain validation succeed for the clients that force TLS, and is
+      # why PRISMA_ALLOW_INSECURE_TLS is no longer needed: verified TLS beats
+      # unverified. apps/api builds its Prisma client without honouring that
+      # flag at all, so trusting the CA is the only approach that covers every
+      # client uniformly.
+      NODE_EXTRA_CA_CERTS: /certs/ca.crt
+      AUTH_SECRET: ${AUTH_SECRET}
+      SECRET_KEY: ${SECRET_KEY}
+      REVALIDATION_SECRET: ${REVALIDATION_SECRET}
+      BETTER_AUTH_URL: ${PUBLIC_URL}
+      BETTER_AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_TRUSTED_ORIGINS: ${PUBLIC_URL},${PUBLIC_PORTAL_URL}
+      # Runtime twin of the build arg; apps/api reads this plain name.
+      SELF_HOSTED: 'true'
+      NEXT_PUBLIC_SELF_HOSTED: 'true'
+      NEXT_PUBLIC_API_URL: ${PUBLIC_URL}
+      NEXT_PUBLIC_PORTAL_URL: ${PUBLIC_PORTAL_URL}
+      # Server-to-server base URL for auth. apps/app/src/utils/auth.ts and the
+      # portal equivalents resolve BACKEND_API_URL -> NEXT_PUBLIC_API_URL ->
+      # localhost:3333. Without this they fall through to NEXT_PUBLIC_API_URL,
+      # which is the PUBLIC origin, so the container fetches its own public
+      # hostname and hairpins back in through Traefik -- which on this host
+      # simply hangs. /auth then never renders while /api/health is fine,
+      # because only the former calls the API. Keep SSR auth traffic on the
+      # compose network.
+      BACKEND_API_URL: http://api-internal:3333
+      # Probe value. Comp marks TRIGGER_SECRET_KEY required-minimal; we are
+      # deliberately finding out which features actually enqueue tasks rather
+      # than onboarding a US processor up front.
+      TRIGGER_SECRET_KEY: ${TRIGGER_SECRET_KEY:-tr_selfhost_probe_unset}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SERVICE_TOKEN_PORTAL: ${SERVICE_TOKEN_PORTAL}
+      SERVICE_TOKEN_TRIGGER: ${SERVICE_TOKEN_TRIGGER}
+      # Placeholder. apps/app/src/env.mjs declares RESEND_API_KEY as a plain
+      # z.string() with no .optional(), so the process refuses to boot without
+      # it even though this deployment deliberately sends no email. Any code
+      # path that actually tries to send will fail at call time, which is
+      # acceptable while this is a single-admin instance: no invites, no
+      # employee onboarding, login is email+password.
+      RESEND_API_KEY: ${RESEND_API_KEY:-re_selfhost_email_disabled}
+      # Object storage. APP_AWS_* is the prefix Comp uses; the api validates
+      # these at boot. Endpoint + path-style point them at the in-stack MinIO.
+      APP_AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      APP_AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      APP_AWS_REGION: us-east-1
+      APP_AWS_ENDPOINT: http://minio:9000
+      APP_AWS_BUCKET_NAME: comp-evidence
+      APP_AWS_ORG_ASSETS_BUCKET: comp-org-assets
+      APP_AWS_QUESTIONNAIRE_UPLOAD_BUCKET: comp-questionnaire
+      APP_AWS_KNOWLEDGE_BASE_BUCKET: comp-knowledge-base
+      # Deliberately unset: POSTHOG, DUB, FIRECRAWL, UPSTASH_*.
+      # PostHog in particular would contradict the no-third-party-tracker
+      # claim W8 put into the published privacy policies.
+    # AT-PATCH: upstream healthchecks with `curl`, which does not exist in
+    # node:22-alpine and is never installed. The check fails forever, the
+    # container is marked unhealthy, Traefik's docker provider skips unhealthy
+    # containers, and the host serves a 404 with correct routers. Use wget
+    # (present via busybox) and 127.0.0.1 — alpine resolves `localhost` to ::1
+    # first and the Next standalone server binds IPv4.
+    # AT: access gate. This host holds the entire compliance record -- asset
+    # inventory, risk register, evidence, and the tenant-isolation findings --
+    # so app-level auth alone is a thin boundary for something reachable from
+    # the whole internet.
+    #
+    # Scope matters here. The gate is attached ONLY to the "/" route (this
+    # service). It is deliberately NOT on /v1, which the MCP server reaches
+    # with an x-api-key, nor on /api/auth, which serves the magic-link verify
+    # URL people click from their mail client. Gating either would break a
+    # working path in a way that looks like a bug rather than a control.
+    #
+    # HSTS is set here too: the api route already sends it via helmet, the app
+    # route sent nothing. No subdomains exist under compliance.*, so
+    # includeSubDomains is safe and matches what /v1 already asserts. This is a
+    # small down payment on W5, not a resolution of it.
+    labels:
+      # Passed via the env file rather than inline: the bcrypt hash is full
+      # of $ characters, which compose would otherwise try to interpolate,
+      # and it does not belong in git either way.
+      - traefik.http.middlewares.comp-gate.basicauth.users=${COMP_GATE_USERS}
+      - traefik.http.middlewares.comp-gate.basicauth.realm=Amsterdam Technologies Compliance
+      - traefik.http.middlewares.comp-hsts.headers.stsSeconds=31536000
+      - traefik.http.middlewares.comp-hsts.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.comp-hsts.headers.forceSTSHeader=true
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1:3000/api/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      seeder:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+      srh:
+        condition: service_started
+    mem_limit: 4g
+    networks:
+      - default
+      - dokploy-network
+
+  # ---------------------------------------------------------------------------
+  # NestJS API. Required for @trycompai/mcp-server, and for several app
+  # features (SoA auto-fill, questionnaire, policy tooling) that call /v1.
+  # Not part of upstream's docker-compose.yml at all.
+  # ---------------------------------------------------------------------------
+  api:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.multistage
+      target: production
+      args:
+        COMP_SOURCE_REVISION: ${COMP_SOURCE_REVISION:?publish matching source first}
+        COMP_SOURCE_SHA256: ${COMP_SOURCE_SHA256:?publish matching source first}
+    volumes:
+      - comp-pgcerts:/certs:ro
+      - /root/comp-source:/opt/comp-source:ro
+    environment:
+      NODE_ENV: production
+      PORT: '3333'
+      UPSTASH_REDIS_REST_URL: http://srh:80
+      UPSTASH_REDIS_REST_TOKEN: ${SRH_TOKEN}
+      DATABASE_URL: ${DATABASE_URL}
+      # Trust the postgres CA generated by the postgres service. This is what
+      # makes chain validation succeed for the clients that force TLS, and is
+      # why PRISMA_ALLOW_INSECURE_TLS is no longer needed: verified TLS beats
+      # unverified. apps/api builds its Prisma client without honouring that
+      # flag at all, so trusting the CA is the only approach that covers every
+      # client uniformly.
+      NODE_EXTRA_CA_CERTS: /certs/ca.crt
+      BASE_URL: ${PUBLIC_URL}
+      BETTER_AUTH_URL: ${PUBLIC_URL}
+      BETTER_AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_SECRET: ${AUTH_SECRET}
+      SECRET_KEY: ${SECRET_KEY}
+      NEXT_PUBLIC_APP_URL: ${PUBLIC_URL}
+      TRUST_APP_URL: ${PUBLIC_URL}
+      AUTH_TRUSTED_ORIGINS: ${PUBLIC_URL},${PUBLIC_PORTAL_URL}
+      SELF_HOSTED: 'true'
+      # SecurityPenetrationTestsService throws in its constructor without this,
+      # so the whole Nest app refuses to boot over a module we do not use.
+      # mc_dev_dummy_api_key is the value Comp's own apps/api/.env.example
+      # ships for it.
+      MACED_API_KEY: ${MACED_API_KEY:-mc_dev_dummy_api_key}
+      # Magic-link URLs are no longer logged: real email delivery now exists
+      # via SMTP below, so the bootstrap escape hatch is off. Setting this to 1
+      # again would put every user's login link in the container log.
+      LOG_MAGIC_LINKS: ${LOG_MAGIC_LINKS:-0}
+      # SMTP — Amsterdam Technologies' own mail server. Replaces the upstream
+      # Trigger.dev -> Resend path for all transactional mail (magic link, OTP,
+      # invitations), removing two US processors from the auth path. See the
+      # AT-PATCH notes in src/email/smtp.ts and src/email/trigger-email.ts.
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+      # Read at call time, not boot, but required by the integration credential
+      # vault and the secrets helpers. Passed through scrypt, so any strong
+      # string works. Losing it makes stored integration credentials
+      # undecryptable.
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SERVICE_TOKEN_PORTAL: ${SERVICE_TOKEN_PORTAL}
+      SERVICE_TOKEN_TRIGGER: ${SERVICE_TOKEN_TRIGGER}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TRIGGER_SECRET_KEY: ${TRIGGER_SECRET_KEY:-tr_selfhost_probe_unset}
+      # Placeholder. apps/api/src/env.mjs declares RESEND_API_KEY as a plain
+      # z.string() with no .optional(), so the process refuses to boot without
+      # it even though this deployment deliberately sends no email. Any code
+      # path that actually tries to send will fail at call time, which is
+      # acceptable while this is a single-admin instance: no invites, no
+      # employee onboarding, login is email+password.
+      RESEND_API_KEY: ${RESEND_API_KEY:-re_selfhost_email_disabled}
+      # Object storage. APP_AWS_* is the prefix Comp uses; the api validates
+      # these at boot. Endpoint + path-style point them at the in-stack MinIO.
+      APP_AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      APP_AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      APP_AWS_REGION: us-east-1
+      APP_AWS_ENDPOINT: http://minio:9000
+      APP_AWS_BUCKET_NAME: comp-evidence
+      APP_AWS_ORG_ASSETS_BUCKET: comp-org-assets
+      APP_AWS_QUESTIONNAIRE_UPLOAD_BUCKET: comp-questionnaire
+      APP_AWS_KNOWLEDGE_BASE_BUCKET: comp-knowledge-base
+
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1:3333/v1/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      seeder:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+      srh:
+        condition: service_started
+    mem_limit: 2g
+    networks:
+      # AT: `api-internal` is an alias on the BRIDGE network only. The service
+      # name `api` resolves on BOTH default and dokploy-network, so Docker DNS
+      # hands back two addresses; undici tries them in order and stalls ~9s on
+      # the overlay one before falling back. Every server-rendered page pays
+      # that twice (session + /v1/auth/me), which is the "hang". Resolving a
+      # single-homed alias removes the ambiguity.
+      default:
+        aliases:
+          - api-internal
+      dokploy-network:
+
+  # ---------------------------------------------------------------------------
+  # Employee portal. Built and running, but no domain is attached — scope
+  # decision: internal app only. Give it a domain when staff need to accept
+  # policies, which also means solving email (Comp has no SMTP path).
+  # ---------------------------------------------------------------------------
+  portal:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: portal
+      args:
+        COMP_SOURCE_REVISION: ${COMP_SOURCE_REVISION:?publish matching source first}
+        COMP_SOURCE_SHA256: ${COMP_SOURCE_SHA256:?publish matching source first}
+        NEXT_PUBLIC_BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
+        NEXT_PUBLIC_API_URL: ${PUBLIC_URL}
+    volumes:
+      - comp-pgcerts:/certs:ro
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: '3000'
+      NODE_OPTIONS: --max-old-space-size=2048
+      UPSTASH_REDIS_REST_URL: http://srh:80
+      UPSTASH_REDIS_REST_TOKEN: ${SRH_TOKEN}
+      DATABASE_URL: ${DATABASE_URL}
+      # Trust the postgres CA generated by the postgres service. This is what
+      # makes chain validation succeed for the clients that force TLS, and is
+      # why PRISMA_ALLOW_INSECURE_TLS is no longer needed: verified TLS beats
+      # unverified. apps/api builds its Prisma client without honouring that
+      # flag at all, so trusting the CA is the only approach that covers every
+      # client uniformly.
+      NODE_EXTRA_CA_CERTS: /certs/ca.crt
+      BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
+      BETTER_AUTH_SECRET: ${AUTH_SECRET}
+      NEXT_PUBLIC_BETTER_AUTH_URL: ${PUBLIC_PORTAL_URL}
+      NEXT_PUBLIC_API_URL: ${PUBLIC_URL}
+      # Server-to-server base URL for auth. apps/app/src/utils/auth.ts and the
+      # portal equivalents resolve BACKEND_API_URL -> NEXT_PUBLIC_API_URL ->
+      # localhost:3333. Without this they fall through to NEXT_PUBLIC_API_URL,
+      # which is the PUBLIC origin, so the container fetches its own public
+      # hostname and hairpins back in through Traefik -- which on this host
+      # simply hangs. /auth then never renders while /api/health is fine,
+      # because only the former calls the API. Keep SSR auth traffic on the
+      # compose network.
+      BACKEND_API_URL: http://api-internal:3333
+      SERVICE_TOKEN_PORTAL: ${SERVICE_TOKEN_PORTAL}
+      # Placeholder. apps/portal/src/env.mjs declares RESEND_API_KEY as a plain
+      # z.string() with no .optional(), so the process refuses to boot without
+      # it even though this deployment deliberately sends no email. Any code
+      # path that actually tries to send will fail at call time, which is
+      # acceptable while this is a single-admin instance: no invites, no
+      # employee onboarding, login is email+password.
+      RESEND_API_KEY: ${RESEND_API_KEY:-re_selfhost_email_disabled}
+
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1:3000/ || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      seeder:
+        condition: service_completed_successfully
+    mem_limit: 2g
+
+volumes:
+  comp-postgres:
+  comp-redis:
+  comp-minio:
+  comp-pgcerts:
+
+networks:
+  dokploy-network:
+    external: true

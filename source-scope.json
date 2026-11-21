@@ -1,0 +1,43 @@
+{
+  "application": "Comp internal compliance instance",
+  "license": "AGPL-3.0",
+  "surfaces": ["apps/app", "apps/api", "apps/portal"],
+  "deployment": {
+    "composeId": "49IlB-peymd7qk3ungmga",
+    "baseline": "df06953aa1f984dabda7f2ccbbf14bbbf0cf90ca",
+    "sourceBranch": "at-selfhost",
+    "delivery": "Source-built company-hosted service; no customer backend/image delivery identified"
+  },
+  "networkSource": "All actual remote users receive matching modified app/API/portal and workspace source, schemas, locks and build/install material through existing browser or API authentication. No extra source role, NDA or code-host privilege.",
+  "dependencies": "Unmodified public build inputs have exact registry URLs/SRI in DEPENDENCY-SOURCES.json. General-purpose tools/free programs are not bundled as thousands of registry archives. Local dependency patches, if introduced, must be included. Original supplier terms remain independent.",
+  "dub": {
+    "license": "AGPL-3.0",
+    "publishedGitHead": "e4d358982c5a5b544495fb18386624ef26c8f16e",
+    "source": "vendor-source/dub-embeds",
+    "evidence": "legal/source-evidence/dub-embeds.json",
+    "scope": "Embed core/react and their TypeScript configuration only; outside the supplier's two EE exceptions. Published npm versions 0.0.16 name this gitHead; source manifests at that gitHead say 0.0.15, retained without alteration."
+  },
+  "tracing": "Unlicensed-declaration @inference/tracing removed. First-party optional OTLP adapter uses existing Apache-2.0 OpenTelemetry packages, defaults disabled, and does not record prompts/responses.",
+  "fonts": {
+    "replacement": "Inter 4.001, unchanged",
+    "license": "OFL-1.1",
+    "sha256": "2dcd3612039a9aaa2660c0c9edd0f4b982e19d317af5ffe4161c37ddc803b5d0",
+    "terms": "apps/app/public/fonts/Inter-OFL.txt and apps/portal/public/fonts/Inter-OFL.txt; original attribution/provenance retained",
+    "generalSans": "Removed from active app/portal source and new image inputs; historical copies are not deleted or retrospectively cleared"
+  },
+  "native": {
+    "observed": "Live API maps sharp-linux-x64.node 0.34.5 and libvips-cpp.so.8.17.3 from @img/sharp-libvips-linux-x64 1.2.4. App/portal contain glibc/musl packages but no mapping was observed during inspection; lazy use remains possible.",
+    "decision": "Unmodified general-purpose native libraries accessed through the standard Sharp package, not locally modified or statically joined to proprietary objects. Company-hosted operation does not itself convey backend/container copies to customers. Exact public source/build references are retained in legal/source-evidence/native.json. No claim that a tag alone proves runtime identity or that future customer image delivery is cleared."
+  },
+  "exclusions": [
+    "other apps and device agents",
+    "EE directories",
+    "production env files",
+    "database dumps",
+    "evidence/uploads",
+    "customer records",
+    "node_modules and built output",
+    "unused registry archive superset"
+  ],
+  "futureDelivery": "Reassess binary/native source and any applicable LGPL replacement/relink delivery before customer/on-prem image conveyance; this release is an internal hosted source offer."
+}

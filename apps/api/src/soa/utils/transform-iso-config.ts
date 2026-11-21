@@ -79,6 +79,28 @@ export function transformISOConfigToSOA(
  * Loads and transforms ISO config JSON file
  */
 export async function loadISOConfig(): Promise<SOAConfiguration> {
+  // AT-PATCH: look next to the compiled code FIRST.
+  //
+  // Both original paths resolve into src/, which does not exist in the
+  // production image — apps/api/Dockerfile.multistage copies only dist. So
+  // ensure-setup failed with
+  //   Failed to create SOA configuration: Failed to load ISO config: ENOENT
+  // and the Statement of Applicability could not be created at all when
+  // self-hosted. The upstream comment ("JSON files aren't copied to dist")
+  // described the problem rather than solving it; nest-cli.json now declares
+  // the file as an asset so it IS copied, and this reads it from there.
+  //
+  // The two src/-relative lookups are kept as fallbacks so a dev checkout
+  // running ts-node without a build still works.
+  const distPath = join(__dirname, '../seedJson/ISO/config.json');
+  try {
+    const configContent = readFileSync(distPath, 'utf-8');
+    const isoControls: ISOControl[] = JSON.parse(configContent);
+    return transformISOConfigToSOA(isoControls);
+  } catch {
+    // fall through to the source-tree lookups below
+  }
+
   // Use fs.readFileSync instead of import to avoid ESM import attribute issues
   // Read from source directory since JSON files aren't copied to dist during compilation
   // __dirname in compiled code is dist/src/soa/utils

@@ -70,7 +70,8 @@ export const viewport = {
 };
 
 const font = localFont({
-  src: '/../../public/fonts/GeneralSans-Variable.ttf',
+  src: '/../../public/fonts/Inter.woff2',
+  weight: '400 700',
   display: 'swap',
   variable: '--font-general-sans',
 });
@@ -99,6 +100,9 @@ export default async function Layout({ children }: { children: React.ReactNode }
           <Providers session={session}>{children}</Providers>
         </NuqsAdapter>
         <Toaster richColors />
+        <footer style={{ padding: '0.5rem 1rem' }}>
+          <a href="/source">Modified Comp source (AGPLv3)</a>
+        </footer>
         <VercelAnalytics />
       </body>
     </html>

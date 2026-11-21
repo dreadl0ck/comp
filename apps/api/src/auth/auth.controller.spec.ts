@@ -2,6 +2,7 @@ const mockUserFindUnique = jest.fn();
 const mockMemberFindMany = jest.fn();
 const mockMemberCount = jest.fn();
 const mockInvitationFindFirst = jest.fn();
+const mockInvitationDelete = jest.fn();
 
 jest.mock('@db', () => ({
   db: {
@@ -10,7 +11,10 @@ jest.mock('@db', () => ({
       findMany: (...a: unknown[]) => mockMemberFindMany(...a),
       count: (...a: unknown[]) => mockMemberCount(...a),
     },
-    invitation: { findFirst: (...a: unknown[]) => mockInvitationFindFirst(...a) },
+    invitation: {
+      findFirst: (...a: unknown[]) => mockInvitationFindFirst(...a),
+      delete: (...a: unknown[]) => mockInvitationDelete(...a),
+    },
   },
 }));
 
@@ -24,6 +28,7 @@ jest.mock('./permission.guard', () => ({
 }));
 
 import { AuthController } from './auth.controller';
+import { NotFoundException } from '@nestjs/common';
 import type { AuthContext } from './types';
 
 const sessionContext = (): AuthContext => ({
@@ -34,6 +39,45 @@ const sessionContext = (): AuthContext => ({
   userRoles: null,
   userId: 'user_1',
   userEmail: 'user@example.com',
+});
+
+describe('AuthController.deleteInvitation', () => {
+  const controller = new AuthController();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockInvitationFindFirst.mockResolvedValue(null);
+  });
+
+  it('requires member deletion permission on the active API route', () => {
+    expect(
+      Reflect.getMetadata(
+        'permissions',
+        AuthController.prototype.deleteInvitation,
+      ),
+    ).toEqual([{ resource: 'member', actions: ['delete'] }]);
+  });
+
+  it('does not delete an invitation absent from the organization pending-invitation query', async () => {
+    await expect(
+      controller.deleteInvitation('inv_1', 'org_1'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(mockInvitationFindFirst).toHaveBeenCalledWith({
+      where: { id: 'inv_1', organizationId: 'org_1', status: 'pending' },
+    });
+    expect(mockInvitationDelete).not.toHaveBeenCalled();
+  });
+
+  it('revokes the matching pending invitation', async () => {
+    mockInvitationFindFirst.mockResolvedValue({ id: 'inv_1' });
+    mockInvitationDelete.mockResolvedValue({ id: 'inv_1' });
+    await expect(
+      controller.deleteInvitation('inv_1', 'org_1'),
+    ).resolves.toEqual({ success: true });
+    expect(mockInvitationDelete).toHaveBeenCalledWith({
+      where: { id: 'inv_1' },
+    });
+  });
 });
 
 describe('AuthController.getMe — hasInactiveMembership (CS-569)', () => {

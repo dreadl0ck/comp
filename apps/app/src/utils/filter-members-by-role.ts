@@ -1,8 +1,11 @@
 import { isBuiltInRole, parseRolesString } from '@/lib/permissions';
-import { Member, User } from '@db';
+interface AssigneeCandidate {
+  id: string;
+  role: string | null;
+}
 
-interface FilterMembersByOwnerOrAdminParams {
-  members: (Member & { user: User })[];
+interface FilterMembersByOwnerOrAdminParams<T extends AssigneeCandidate> {
+  members: T[];
   /**
    * Optional current assignee ID to always include (even if not assignable),
    * so existing assignments/active filters remain visible.
@@ -20,9 +23,10 @@ interface FilterMembersByOwnerOrAdminParams {
  * The built-in restricted roles (`employee`, `contractor`) and `auditor` remain
  * excluded.
  */
-export function filterMembersByOwnerOrAdmin(
-  { members, currentAssigneeId }: FilterMembersByOwnerOrAdminParams,
-): (Member & { user: User })[] {
+export function filterMembersByOwnerOrAdmin<T extends AssigneeCandidate>({
+  members,
+  currentAssigneeId,
+}: FilterMembersByOwnerOrAdminParams<T>): T[] {
   return members.filter((member) => {
     // Always include current assignee to preserve existing assignments
     if (currentAssigneeId && member.id === currentAssigneeId) {

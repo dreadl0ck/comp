@@ -1,0 +1,35 @@
+services:
+  source:
+    image: comp-source:nginx-1.31.9-alpine3.24.4
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM nginx:1.31.9-alpine3.24@sha256:90b6bd2aec278b16b98221d64deb1d6d35d164567f507ab0716e6053878315aa
+        RUN apk upgrade --no-cache && test "$(cat /etc/alpine-release)" = 3.24.4
+    restart: unless-stopped
+    user: '101:101'
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 64m
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:mode=1777
+      - /var/run:mode=1777
+    volumes:
+      - ${SOURCE_DIRECTORY:?}:/usr/share/nginx/html/legal/source:ro
+    networks:
+      - dokploy-network
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.comp-source.rule=Host(`compliance.amsterdam-technologies.com`) && PathPrefix(`/legal/source/`)
+      - traefik.http.routers.comp-source.priority=200
+      - traefik.http.routers.comp-source.entrypoints=websecure
+      - traefik.http.routers.comp-source.tls.certresolver=letsencrypt
+      - traefik.http.routers.comp-source.middlewares=comp-gate@docker
+      - traefik.http.services.comp-source.loadbalancer.server.port=80
+networks:
+  dokploy-network:
+    external: true

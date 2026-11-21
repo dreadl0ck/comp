@@ -8,35 +8,36 @@ export const config = {
 };
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname === '/source' || request.nextUrl.pathname.startsWith('/source/')) {
+    return NextResponse.next();
+  }
   try {
-    // E2E Test Mode: Check for test auth header
-    if (process.env.E2E_TEST_MODE === 'true') {
-      const testAuthHeader = request.headers.get('x-e2e-test-auth');
-      if (testAuthHeader) {
-        try {
-          const testAuth = JSON.parse(testAuthHeader);
-          if (testAuth.bypass) {
-            // Allow the request to proceed without auth checks
-            const response = NextResponse.next();
-            response.headers.set('x-pathname', request.nextUrl.pathname);
-            return response;
-          }
-        } catch (e) {
-          // Invalid test auth header, continue with normal auth flow
-        }
-      }
-    }
-
     // Check for session cookies across all environment prefixes
     const sessionToken =
       request.cookies.get('__Secure-better-auth.session_token')?.value ||
       request.cookies.get('better-auth.session_token')?.value ||
       request.cookies.get('__Secure-staging.session_token')?.value ||
       request.cookies.get('staging.session_token')?.value ||
+      // AT-PATCH: the __Secure- variant of the `local` prefix was missing,
+      // and it is the exact combination a self-hosted HTTPS deployment
+      // produces. apps/api getCookieDomain() only recognises trycomp.ai
+      // hosts and returns undefined for anything else, which selects
+      // cookiePrefix 'local' (the dev naming); better-auth independently
+      // adds the __Secure- prefix because baseURL is https (the prod
+      // behaviour). Upstream never sees `local` over https, so the pairing
+      // is unreachable in their environments.
+      //
+      // Without this the middleware finds no token and redirects to /auth
+      // BEFORE any page runs -- while the API happily validates the very
+      // same cookie. That split is what makes it look like login "worked"
+      // and then silently didn't.
+      request.cookies.get('__Secure-local.session_token')?.value ||
       request.cookies.get('local.session_token')?.value;
     const hasToken = Boolean(sessionToken);
     const nextUrl = request.nextUrl;
     const requestHeaders = new Headers(request.headers);
+    const intent = nextUrl.searchParams.get('intent') || '';
+    if (intent) requestHeaders.set('x-intent', intent);
 
     // Add x-path-name and selected query hints for server components
     const response = NextResponse.next({
@@ -45,13 +46,6 @@ export async function proxy(request: NextRequest) {
       },
     });
     response.headers.set('x-pathname', nextUrl.pathname);
-    const intent = nextUrl.searchParams.get('intent') || '';
-    if (intent) {
-      // Also forward intent to the request headers so server components can read it
-      requestHeaders.set('x-intent', intent);
-      // Recreate response with updated forwarded headers
-      return NextResponse.next({ request: { headers: requestHeaders } });
-    }
 
     // Allow unauthenticated access to invite routes
     if (nextUrl.pathname.startsWith('/invite/')) {

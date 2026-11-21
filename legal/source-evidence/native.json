@@ -1,0 +1,86 @@
+{
+  "delivery": "Company-hosted service; native backend/container copies are not supplied to customers. No local native-library patches or proprietary relink objects.",
+  "sources": [
+    {
+      "repository": "https://github.com/lovell/sharp",
+      "revision": "51a990faa26ade5586a4934ac9673c98d8893326",
+      "sourceArchive": "https://github.com/lovell/sharp/archive/51a990faa26ade5586a4934ac9673c98d8893326.tar.gz",
+      "retainedFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68"
+        },
+        {
+          "path": "package.json",
+          "sha256": "ad4a2535d72eb638053a38867b1abf43c328cd1c1dbae5cf4172d498365a8b97"
+        }
+      ]
+    },
+    {
+      "repository": "https://github.com/lovell/sharp-libvips",
+      "revision": "ebb95f8add54eee8bed840e3fb587e4cbec857d7",
+      "sourceArchive": "https://github.com/lovell/sharp-libvips/archive/ebb95f8add54eee8bed840e3fb587e4cbec857d7.tar.gz",
+      "retainedFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+        },
+        {
+          "path": "README.md",
+          "sha256": "52f8b2931fa6d496c792a2ed808177414ac24f2f87b667bb13fbc21bf1d99758"
+        },
+        {
+          "path": "build/posix.sh",
+          "sha256": "333031b3b49bf1a16d0b9d6812d98f67c404218932ef8c0b389388524a524b36"
+        }
+      ]
+    },
+    {
+      "repository": "https://github.com/libvips/libvips",
+      "revision": "24ad4d042940e6bf99a68871ba886ca8847c9c82",
+      "sourceArchive": "https://github.com/libvips/libvips/archive/24ad4d042940e6bf99a68871ba886ca8847c9c82.tar.gz",
+      "retainedFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551"
+        }
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "name": "sharp",
+      "version": "0.35.5",
+      "declaredLicense": "Apache-2.0",
+      "archive": "https://registry.npmjs.org/sharp/-/sharp-0.35.5.tgz",
+      "integrity": "sha512-Ywn4OnzGukp7CDMrp08RQ50YKmuwG47brZgIVPTvBaaAfQlRlygrRqSrxdCiL9M+LlzLBiJ68IR1QqvzHyjC7g=="
+    },
+    {
+      "name": "@img/sharp-libvips-linux-x64",
+      "version": "1.3.4",
+      "declaredLicense": "LGPL-3.0-or-later",
+      "archive": "https://registry.npmjs.org/@img/sharp-libvips-linux-x64/-/sharp-libvips-linux-x64-1.3.4.tgz",
+      "integrity": "sha512-GJ//SSXbnwSDes02umB3nDJLFcQzw8a18V8fyhqr6tV515tOEMdImjjxj1AoafMRz56F3PHgftnj1QEKSU1zkw=="
+    },
+    {
+      "name": "@img/sharp-libvips-linuxmusl-x64",
+      "version": "1.3.4",
+      "declaredLicense": "LGPL-3.0-or-later",
+      "archive": "https://registry.npmjs.org/@img/sharp-libvips-linuxmusl-x64/-/sharp-libvips-linuxmusl-x64-1.3.4.tgz",
+      "integrity": "sha512-6zXKeE/p39I1AmA3cJG35eyBGNqNddLnUXjhwBnsGjFPWqf5VKkDBEqaEkPDoTEtkxwi2vv8Tcr2mDyP4So7Fg=="
+    }
+  ],
+  "libvipsSourceRelease": {
+    "version": "8.18.7",
+    "archive": "https://github.com/libvips/libvips/releases/download/v8.18.7/vips-8.18.7.tar.xz",
+    "publishedChecksum": "5baaead3b0bb20ffdb9e9ff09aa9fda08620923df77b63b436654cb5e0b3bf94 *vips-8.18.7.tar.xz"
+  },
+  "runtime": {
+    "status": "Candidate build inputs; running mappings require verification after deployment.",
+    "api": [
+      "@img/sharp-linux-x64/lib/sharp-linux-x64.node",
+      "@img/sharp-libvips-linux-x64/lib/libvips-cpp.so.8.18.7"
+    ],
+    "appPortal": "Both glibc/musl packages are build inputs; candidate runtime mappings have not been measured."
+  }
+}
