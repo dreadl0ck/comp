@@ -13,13 +13,13 @@ copying, modification and redistribution rights without an NDA or code-host acco
 | Deployed work | `apps/app`, `apps/api`, `apps/portal` and the workspace packages used by their Docker targets. EE code, device agents and other applications are excluded. |
 | Covered Dub source | `vendor-source/dub-embeds/` retains preferred TypeScript source/build configuration and the full upstream grant. `legal/source-evidence/dub-embeds.json` binds npm 0.0.16 to its published gitHead; that source snapshot's manifests say 0.0.15, preserved verbatim. Its embed paths are outside the upstream EE exceptions. |
 | Public build inputs | `DEPENDENCY-SOURCES.json` records exact registry URLs, SHA-512 integrity and frozen profile membership. These unmodified upstream packages/build tools are not redistributed as a 3,249-archive superset and are not declared to share Comp's license. |
-| Native libraries | `legal/source-evidence/native.json` identifies Sharp 0.34.5, libvips 8.17.3, exact public source commits/releases and retained original build recipes/licenses. They are unmodified general-purpose dependencies. Hosted operation does not itself convey backend/container copies to customers; future on-prem/native binary delivery needs its own applicable source/relink fulfillment. |
+| Native libraries | `legal/source-evidence/native.json` identifies Sharp 0.35.5, libvips 8.18.7, exact public source commits/releases and retained original build recipes/licenses. They are unmodified general-purpose dependencies. Hosted operation does not itself convey backend/container copies to customers; future on-prem/native binary delivery needs its own applicable source/relink fulfillment. |
 | Fonts | App and portal use unchanged Inter 4.001, SHA-256 `2dcd3612039a9aaa2660c0c9edd0f4b982e19d317af5ffe4161c37ddc803b5d0`. Both `public/fonts/` directories include the full OFL and original attribution/provenance. General Sans is removed from active inputs. |
 | Exclusions | Production environments, credentials, evidence/uploads, database dumps and customer records are not source material. `source-scope.json` records the boundary. |
 
 ## Build
 
-Use the pinned Bun 1.2.8 Docker builder. `build-locks/app.bun.lock` is shared by
+Use the pinned Bun 1.4.5 Docker builder. `build-locks/app.bun.lock` is shared by
 app/portal; `build-locks/api.bun.lock` covers the API. Both installs are frozen.
 `refresh-build-locks.py` regenerates only dependency-profile exports and checks
 their package versions/integrity against root `bun.lock`.

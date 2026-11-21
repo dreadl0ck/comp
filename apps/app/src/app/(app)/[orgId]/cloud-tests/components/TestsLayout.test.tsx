@@ -1,11 +1,12 @@
-import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  setMockPermissions,
-  mockHasPermission,
   ADMIN_PERMISSIONS,
   AUDITOR_PERMISSIONS,
+  mockHasPermission,
+  setMockPermissions,
 } from '@/test-utils/mocks/permissions';
+import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Finding, Provider } from '../types';
 
 // Mock usePermissions
 vi.mock('@/hooks/use-permissions', () => ({
@@ -16,7 +17,12 @@ vi.mock('@/hooks/use-permissions', () => ({
 }));
 
 // Mock useApi hook
-const mockUseSWR = vi.fn(() => ({
+type MockSWRResult = {
+  data: { data: { data: (Finding | Provider)[]; count: number } };
+  mutate: ReturnType<typeof vi.fn>;
+  isValidating: boolean;
+};
+const mockUseSWR = vi.fn<() => MockSWRResult>(() => ({
   data: { data: { data: [], count: 0 } },
   mutate: vi.fn(),
   isValidating: false,
@@ -98,12 +104,8 @@ vi.mock('@trycompai/design-system', () => ({
       {children}
     </div>
   ),
-  PageHeaderDescription: ({ children }: { children: React.ReactNode }) => (
-    <p>{children}</p>
-  ),
-  PageLayout: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
+  PageHeaderDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  PageLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock('@trycompai/design-system/icons', () => ({
@@ -121,13 +123,16 @@ vi.mock('sonner', () => ({
 
 import { TestsLayout } from './TestsLayout';
 
-const mockProvider = {
+const mockProvider: Provider = {
   id: 'conn-1',
   integrationId: 'aws',
   name: 'AWS',
   displayName: 'AWS Production',
   status: 'active',
-  lastRunAt: '2024-01-01',
+  organizationId: 'org_123',
+  lastRunAt: new Date('2024-01-01'),
+  createdAt: new Date('2024-01-01'),
+  updatedAt: new Date('2024-01-01'),
   isLegacy: false,
   supportsMultipleConnections: false,
   requiredVariables: [],
@@ -220,13 +225,7 @@ describe('TestsLayout permission gating', () => {
       mutate: vi.fn(),
       isValidating: false,
     });
-    render(
-      <TestsLayout
-        initialFindings={[]}
-        initialProviders={[]}
-        orgId="org_123"
-      />,
-    );
+    render(<TestsLayout initialFindings={[]} initialProviders={[]} orgId="org_123" />);
     expect(screen.getByTestId('empty-state')).toBeInTheDocument();
   });
 });

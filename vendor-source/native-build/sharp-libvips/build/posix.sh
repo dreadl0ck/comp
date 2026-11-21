@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+## Copyright 2017 Lovell Fuller and others.
+## SPDX-License-Identifier: Apache-2.0
+
 # Dependency version numbers
 if [ -f /packaging/versions.properties ]; then
   source /packaging/versions.properties
@@ -39,14 +42,13 @@ mkdir ${DEPS}
 mkdir ${TARGET}
 
 # Default optimisation level is for binary size (-Os)
-# Overriden to performance (-O3) for select dependencies that benefit
+# Overridden to performance (-O3) for select dependencies that benefit
 export FLAGS+=" -Os -fPIC"
 
-# Force "new" C++11 ABI compliance
 # Remove async exception unwind/backtrace tables
 # Allow linker to remove unused sections
 if [ "$LINUX" = true ]; then
-  export FLAGS+=" -D_GLIBCXX_USE_CXX11_ABI=1 -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections"
+  export FLAGS+=" -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections"
 fi
 
 # Common build paths and flags
@@ -129,7 +131,7 @@ $CURL https://github.com/zlib-ng/zlib-ng/archive/${VERSION_ZLIB_NG}.tar.gz | tar
 cd ${DEPS}/zlib-ng
 CFLAGS="${CFLAGS} -O3" cmake -G"Unix Makefiles" \
   -DCMAKE_TOOLCHAIN_FILE=${ROOT}/Toolchain.cmake -DCMAKE_INSTALL_PREFIX=${TARGET} -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_SHARED_LIBS=FALSE -DZLIB_COMPAT=TRUE -DWITH_ARMV6=FALSE
+  -DBUILD_SHARED_LIBS=FALSE -DBUILD_TESTING=FALSE -DZLIB_COMPAT=TRUE -DWITH_ARMV6=FALSE
 make install/strip
 
 mkdir ${DEPS}/ffi
@@ -168,39 +170,37 @@ mkdir ${DEPS}/lcms
 $CURL https://github.com/mm2/Little-CMS/releases/download/lcms${VERSION_LCMS}/lcms2-${VERSION_LCMS}.tar.gz | tar xzC ${DEPS}/lcms --strip-components=1
 cd ${DEPS}/lcms
 CFLAGS="${CFLAGS} -O3" meson setup _build --default-library=static --buildtype=release --strip --prefix=${TARGET} ${MESON} \
-  -Dtests=disabled 
+  -Dtests=disabled
 meson install -C _build --tag devel
 
 mkdir ${DEPS}/aom
 $CURL https://storage.googleapis.com/aom-releases/libaom-${VERSION_AOM}.tar.gz | tar xzC ${DEPS}/aom --strip-components=1
 cd ${DEPS}/aom
-# Downgrade minimum required CMake version to 3.13 - https://aomedia.googlesource.com/aom/+/597a35fbc9837e33366a1108631d9c72ee7a49e7
-find . -name 'CMakeLists.txt' -o -name '*.cmake' | xargs sed -i'.bak' "/^cmake_minimum_required/s/3.16/3.13/"
-# [PATCH] cmake: fix nasm detection w/3.0
-$CURL https://github.com/m-ab-s/aom/commit/6d2b7f71b98bfa28e372b1f2d85f137280bdb3de.patch | patch -p1
 mkdir aom_build
 cd aom_build
 AOM_AS_FLAGS="${FLAGS}" cmake -G"Unix Makefiles" \
   -DCMAKE_TOOLCHAIN_FILE=${ROOT}/Toolchain.cmake -DCMAKE_INSTALL_PREFIX=${TARGET} -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=MinSizeRel \
-  -DBUILD_SHARED_LIBS=FALSE -DENABLE_DOCS=0 -DENABLE_TESTS=0 -DENABLE_TESTDATA=0 -DENABLE_TOOLS=0 -DENABLE_EXAMPLES=0 \
+  -DBUILD_SHARED_LIBS=FALSE -DENABLE_DOCS=0 -DENABLE_TESTS=0 -DENABLE_TESTDATA=0 -DENABLE_TOOLS=0 -DENABLE_APPS=0 -DENABLE_EXAMPLES=0 \
   -DCONFIG_PIC=1 -DENABLE_NASM=1 ${WITHOUT_NEON:+-DENABLE_NEON=0} -DENABLE_RVV=0 \
-  -DCONFIG_AV1_HIGHBITDEPTH=0 -DCONFIG_WEBM_IO=0 \
+  -DCONFIG_AV1_HIGHBITDEPTH=1 -DCONFIG_WEBM_IO=0 \
   ..
 make install/strip
 
 mkdir ${DEPS}/heif
 $CURL https://github.com/strukturag/libheif/releases/download/v${VERSION_HEIF}/libheif-${VERSION_HEIF}.tar.gz | tar xzC ${DEPS}/heif --strip-components=1
 cd ${DEPS}/heif
-# Downgrade minimum required CMake version to 3.12 - https://github.com/strukturag/libheif/issues/975
-sed -i'.bak' "/^cmake_minimum_required/s/3.16.3/3.12/" CMakeLists.txt
 CFLAGS="${CFLAGS} -O3" CXXFLAGS="${CXXFLAGS} -O3" cmake -G"Unix Makefiles" \
   -DCMAKE_TOOLCHAIN_FILE=${ROOT}/Toolchain.cmake -DCMAKE_INSTALL_PREFIX=${TARGET} -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_SHARED_LIBS=FALSE -DBUILD_TESTING=0 -DENABLE_PLUGIN_LOADING=0 -DWITH_EXAMPLES=0 -DWITH_LIBDE265=0 -DWITH_X265=0
+  -DBUILD_SHARED_LIBS=FALSE -DBUILD_DOCUMENTATION=0 -DBUILD_TESTING=0 -DENABLE_PLUGIN_LOADING=0 -DWITH_EXAMPLES=0 -DWITH_LIBDE265=0 -DWITH_X265=0
 make install/strip
 
 mkdir ${DEPS}/jpeg
 $CURL https://github.com/mozilla/mozjpeg/archive/${VERSION_MOZJPEG}.tar.gz | tar xzC ${DEPS}/jpeg --strip-components=1
 cd ${DEPS}/jpeg
+# [PATCH] fix: use saturating arithmetic in SIMD FDCT to prevent overflow
+$CURL https://github.com/mozilla/mozjpeg/commit/f90668e0e4fb79c81e1f24a0ccc0e2090af761bf.patch | patch -p1
+# Use libjpeg-turbo behaviour by default
+sed -i'.bak' 's/JCP_MAX_COMPRESSION/JCP_FASTEST/' jcapimin.c
 cmake -G"Unix Makefiles" \
   -DCMAKE_TOOLCHAIN_FILE=${ROOT}/Toolchain.cmake -DCMAKE_INSTALL_PREFIX=${TARGET} -DCMAKE_INSTALL_LIBDIR:PATH=lib -DCMAKE_BUILD_TYPE=MinSizeRel \
   -DBUILD_SHARED_LIBS=FALSE -DWITH_JPEG8=1 -DWITH_TURBOJPEG=FALSE -DPNG_SUPPORTED=FALSE
@@ -212,13 +212,6 @@ cd ${DEPS}/png
 ./configure --host=${CHOST} --prefix=${TARGET} --enable-static --disable-shared --disable-dependency-tracking \
   --disable-tools --without-binconfigs --disable-unversioned-libpng-config
 make install-strip dist_man_MANS=
-
-mkdir ${DEPS}/spng
-$CURL https://github.com/randy408/libspng/archive/v${VERSION_SPNG}.tar.gz | tar xzC ${DEPS}/spng --strip-components=1
-cd ${DEPS}/spng
-CFLAGS="${CFLAGS} -O3 -DSPNG_SSE=4" meson setup _build --default-library=static --buildtype=release --strip --prefix=${TARGET} ${MESON} \
-  -Dstatic_zlib=true -Dbuild_examples=false
-meson install -C _build --tag devel
 
 mkdir ${DEPS}/imagequant
 $CURL https://github.com/lovell/libimagequant/archive/v${VERSION_IMAGEQUANT}.tar.gz | tar xzC ${DEPS}/imagequant --strip-components=1
@@ -234,19 +227,19 @@ cd ${DEPS}/webp
 make install-strip bin_PROGRAMS= noinst_PROGRAMS= man_MANS=
 
 mkdir ${DEPS}/tiff
-$CURL https://download.osgeo.org/libtiff/tiff-${VERSION_TIFF}.tar.gz | tar xzC ${DEPS}/tiff --strip-components=1
+$CURL https://gitlab.com/libtiff/libtiff/-/archive/v${VERSION_TIFF}/libtiff-v${VERSION_TIFF}.tar.gz | tar xzC ${DEPS}/tiff --strip-components=1
 cd ${DEPS}/tiff
-# Propagate -pthread into CFLAGS to ensure WebP support
-CFLAGS="${CFLAGS} -pthread" ./configure --host=${CHOST} --prefix=${TARGET} --enable-static --disable-shared --disable-dependency-tracking \
-  --disable-tools --disable-tests --disable-contrib --disable-docs --disable-mdi --disable-pixarlog --disable-old-jpeg --disable-cxx --disable-lzma --disable-zstd --disable-libdeflate
-make install-strip noinst_PROGRAMS= dist_doc_DATA=
+cmake -G"Unix Makefiles" \
+  -DCMAKE_TOOLCHAIN_FILE=${ROOT}/Toolchain.cmake -DCMAKE_INSTALL_PREFIX=${TARGET} -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=MinSizeRel \
+  -DBUILD_SHARED_LIBS=FALSE -DCMath_HAVE_LIBC_POW=1 \
+  -Dtiff-contrib=OFF -Dtiff-cxx=OFF -Dtiff-docs=OFF -Dtiff-tests=OFF -Dtiff-tools=OFF -Dmdi=OFF \
+  -Djbig=OFF -Dlerc=OFF -Dlibdeflate=OFF -Dlzma=OFF -Dold-jpeg=OFF -Dpixarlog=OFF -Dtiff-opengl=OFF -Dzstd=OFF
+make install/strip
 
 if [ -z "$WITHOUT_HIGHWAY" ]; then
-  mkdir ${DEPS}/hwy
-  $CURL https://github.com/google/highway/archive/${VERSION_HWY}.tar.gz | tar xzC ${DEPS}/hwy --strip-components=1
-  cd ${DEPS}/hwy
-  # [PATCH] workaround for inadvertent SVE codegen on GCC<14
-  $CURL https://github.com/google/highway/commit/ad48f2bf298bac247288c8399a5c0e9a40ed8246.patch | patch -p1
+  mkdir ${DEPS}/highway
+  $CURL https://github.com/google/highway/archive/${VERSION_HIGHWAY}.tar.gz | tar xzC ${DEPS}/highway --strip-components=1
+  cd ${DEPS}/highway
   CFLAGS="${CFLAGS} -O3" CXXFLAGS="${CXXFLAGS} -O3" cmake -G"Unix Makefiles" \
     -DCMAKE_TOOLCHAIN_FILE=${ROOT}/Toolchain.cmake -DCMAKE_INSTALL_PREFIX=${TARGET} -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=FALSE -DBUILD_TESTING=0 -DHWY_ENABLE_CONTRIB=0 -DHWY_ENABLE_EXAMPLES=0 -DHWY_ENABLE_TESTS=0
@@ -288,6 +281,8 @@ cd ${DEPS}/fontconfig
 sed -i'.bak' "/subdir('its')/d" meson.build
 # Silence FcInit warnings
 sed -i'.bak' "/using without calling FcInit/d" src/fcobjs.c
+# Prevent creation of versioned cache symlinks
+sed -i'.bak' "s/cachemincompat/cacheversion/" fontconfig/meson.build
 meson setup _build --default-library=static --buildtype=release --strip --prefix=${TARGET} ${MESON} \
   -Dcache-build=disabled -Ddoc=disabled -Dnls=disabled -Dtests=disabled -Dtools=disabled
 meson install -C _build --tag devel
@@ -295,18 +290,11 @@ meson install -C _build --tag devel
 mkdir ${DEPS}/harfbuzz
 $CURL https://github.com/harfbuzz/harfbuzz/archive/${VERSION_HARFBUZZ}.tar.gz | tar xzC ${DEPS}/harfbuzz --strip-components=1
 cd ${DEPS}/harfbuzz
-# Disable utils
-sed -i'.bak' "/subdir('util')/d" meson.build
 meson setup _build --default-library=static --buildtype=release --strip --prefix=${TARGET} ${MESON} \
-  -Dgobject=disabled -Dicu=disabled -Dtests=disabled -Dintrospection=disabled -Ddocs=disabled -Dbenchmark=disabled ${DARWIN:+-Dcoretext=enabled}
+  -Dgobject=disabled -Dicu=disabled -Dtests=disabled -Dintrospection=disabled -Ddocs=disabled -Dbenchmark=disabled -Dutilities=disabled \
+  -Draster=disabled -Dvector=disabled -Dsubset=disabled -Dgpu=disabled -Dgpu_demo=disabled \
+  ${DARWIN:+-Dcoretext=enabled}
 meson install -C _build --tag devel
-
-# pkg-config provided by Amazon Linux 2 doesn't support circular `Requires` dependencies.
-# https://bugs.freedesktop.org/show_bug.cgi?id=7331
-# https://gitlab.freedesktop.org/pkg-config/pkg-config/-/commit/6d6dd43e75e2bc82cfe6544f8631b1bef6e1cf45
-# TODO(kleisauke): Remove when Amazon Linux 2 reaches EOL.
-sed -i'.bak' "/^Requires:/s/ freetype2.*,//" ${TARGET}/lib/pkgconfig/harfbuzz.pc
-sed -i'.bak' "/^Libs:/s/$/ -lfreetype/" ${TARGET}/lib/pkgconfig/harfbuzz.pc
 
 build_freetype -Dharfbuzz=enabled
 
@@ -353,6 +341,8 @@ sed -i'.bak' "/cairo-rs = /s/, \"pdf\", \"ps\"//" {librsvg-c,rsvg}/Cargo.toml
 sed -i'.bak' "/^if host_system in \['windows'/s/, 'linux'//" meson.build
 # Regenerate the lockfile after making the above changes
 cargo update --workspace
+# [PATCH] Ensure embedded image memory limits are enforced
+$CURL https://github.com/GNOME/librsvg/commit/9106011db93d701728ac2c9da50c9ab2c1bb5dc6.patch | patch -p1
 # Remove the --static flag from the PKG_CONFIG env since Rust does not
 # parse that correctly.
 PKG_CONFIG=${PKG_CONFIG/ --static/} meson setup _build --default-library=static --buildtype=plain --strip --prefix=${TARGET} ${MESON} \
@@ -367,13 +357,23 @@ CFLAGS="${CFLAGS} -O3" meson setup _build --default-library=static --buildtype=r
   -Dexamples=false -Dtests=false
 meson install -C _build --tag devel
 
+mkdir ${DEPS}/uhdr
+$CURL https://github.com/google/libultrahdr/archive/v${VERSION_UHDR}.tar.gz | tar xzC ${DEPS}/uhdr --strip-components=1
+cd ${DEPS}/uhdr
+# [PATCH] Remove platform and architecture detection logic
+$CURL https://patch-diff.githubusercontent.com/raw/google/libultrahdr/pull/383.patch | patch -p1
+# Ensure install targets are enabled when cross-compiling
+sed -i'.bak' 's/CMAKE_CROSSCOMPILING AND UHDR_ENABLE_INSTALL/FALSE/' CMakeLists.txt
+CFLAGS="${CFLAGS} -O3" CXXFLAGS="${CXXFLAGS} -O3" cmake -G"Unix Makefiles" \
+  -DCMAKE_TOOLCHAIN_FILE=${ROOT}/Toolchain.cmake -DCMAKE_INSTALL_PREFIX=${TARGET} -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_SHARED_LIBS=FALSE -DUHDR_BUILD_EXAMPLES=FALSE -DUHDR_ENABLE_HEIF=FALSE -DUHDR_MAX_DIMENSION=65500 ${WITHOUT_NEON:+-DUHDR_ENABLE_INTRINSICS=FALSE}
+make install/strip
+
 mkdir ${DEPS}/vips
-$CURL https://github.com/libvips/libvips/releases/download/v${VERSION_VIPS}/vips-${VERSION_VIPS}.tar.xz | tar xJC ${DEPS}/vips --strip-components=1
+$CURL https://github.com/libvips/libvips/releases/download/v${VERSION_VIPS}/vips-$(without_prerelease $VERSION_VIPS).tar.xz | tar xJC ${DEPS}/vips --strip-components=1
 cd ${DEPS}/vips
 # Use version number in SONAME
 $CURL https://gist.githubusercontent.com/lovell/313a6901e9db1bf285f2a1f1180499e4/raw/3988223c7dfa4d22745d9392034b0117abef1446/libvips-cpp-soversion.patch | patch -p1
-# Disable HBR support in heifsave
-$CURL https://github.com/libvips/build-win64-mxe/raw/v${VERSION_VIPS}/build/patches/vips-8-heifsave-disable-hbr-support.patch | patch -p1
 # Link libvips.so statically into libvips-cpp.so
 sed -i'.bak' "s/library('vips'/static_&/" libvips/meson.build
 sed -i'.bak' "/version: library_version/{N;d;}" libvips/meson.build
@@ -390,9 +390,9 @@ fi
 # Disable building man pages, gettext po files, tools, and (fuzz-)tests
 sed -i'.bak' "/subdir('man')/{N;N;N;N;d;}" meson.build
 CFLAGS="${CFLAGS} -O3" CXXFLAGS="${CXXFLAGS} -O3" meson setup _build --default-library=shared --buildtype=release --strip --prefix=${TARGET} ${MESON} \
-  -Ddeprecated=false -Dexamples=false -Dintrospection=disabled -Dmodules=disabled -Dcfitsio=disabled -Dfftw=disabled -Djpeg-xl=disabled \
-  ${WITHOUT_HIGHWAY:+-Dhighway=disabled} -Dorc=disabled -Dmagick=disabled -Dmatio=disabled -Dnifti=disabled -Dopenexr=disabled \
-  -Dopenjpeg=disabled -Dopenslide=disabled -Dpdfium=disabled -Dpoppler=disabled -Dquantizr=disabled \
+  -Ddeprecated=false -Dexamples=false -Dauto_features=enabled -Dintrospection=disabled -Dmodules=disabled -Dcfitsio=disabled -Dfftw=disabled \
+  -Djpeg-xl=disabled ${WITHOUT_HIGHWAY:+-Dhighway=disabled} -Dorc=disabled -Dmagick=disabled -Dmatio=disabled -Dnifti=disabled -Dopenexr=disabled \
+  -Dopenjpeg=disabled -Dopenslide=disabled -Dpdfium=disabled -Dpoppler=disabled -Dquantizr=disabled -Draw=disabled -Dspng=disabled \
   -Dppm=false -Danalyze=false -Dradiance=false \
   ${LINUX:+-Dcpp_link_args="$LDFLAGS -Wl,-Bsymbolic-functions -Wl,--version-script=$DEPS/vips/vips.map $EXCLUDE_LIBS"}
 meson install -C _build --tag runtime,devel
@@ -442,6 +442,8 @@ cd ${TARGET}/lib
 if [ "$LINUX" = true ]; then
   # Check that we really linked with -z nodelete
   readelf -Wd ${VIPS_CPP_DEP} | grep -qF NODELETE || (echo "$VIPS_CPP_DEP was not linked with -z nodelete" && exit 1)
+  # Check that we really use the "new" C++11 ABI
+  readelf -Ws ${VIPS_CPP_DEP} | c++filt | grep -qF "::__cxx11::" || (echo "$VIPS_CPP_DEP mistakenly uses the C++03 ABI" && exit 1)
 fi
 copydeps ${VIPS_CPP_DEP} ${TARGET}/lib-filtered
 
@@ -461,7 +463,7 @@ printf "{\n\
   \"glib\": \"${VERSION_GLIB}\",\n\
   \"harfbuzz\": \"${VERSION_HARFBUZZ}\",\n\
   \"heif\": \"${VERSION_HEIF}\",\n\
-  \"highway\": \"${VERSION_HWY}\",\n\
+  \"highway\": \"${VERSION_HIGHWAY}\",\n\
   \"imagequant\": \"${VERSION_IMAGEQUANT}\",\n\
   \"lcms\": \"${VERSION_LCMS}\",\n\
   \"mozjpeg\": \"${VERSION_MOZJPEG}\",\n\
@@ -470,8 +472,8 @@ printf "{\n\
   \"png\": \"${VERSION_PNG}\",\n\
   \"proxy-libintl\": \"${VERSION_PROXY_LIBINTL}\",\n\
   \"rsvg\": \"${VERSION_RSVG}\",\n\
-  \"spng\": \"${VERSION_SPNG}\",\n\
   \"tiff\": \"${VERSION_TIFF}\",\n\
+  \"uhdr\": \"${VERSION_UHDR}\",\n\
   \"vips\": \"${VERSION_VIPS}\",\n\
   \"webp\": \"${VERSION_WEBP}\",\n\
   \"xml2\": \"${VERSION_XML2}\",\n\

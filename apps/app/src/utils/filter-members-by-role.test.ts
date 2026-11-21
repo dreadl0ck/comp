@@ -1,4 +1,3 @@
-import type { Member, User } from '@db';
 import { describe, expect, it, vi } from 'vitest';
 
 // Mock @/lib/permissions to avoid resolving @trycompai/auth in the test runtime.
@@ -21,7 +20,7 @@ vi.mock('@/lib/permissions', () => ({
 const { filterMembersByOwnerOrAdmin } = await import('./filter-members-by-role');
 
 // Minimal member factory for testing
-function makeMember(overrides: { id: string; role: string | null }): Member & { user: User } {
+function makeMember(overrides: { id: string; role: string | null }) {
   const { id, role } = overrides;
   return {
     id,
@@ -29,7 +28,7 @@ function makeMember(overrides: { id: string; role: string | null }): Member & { 
     organizationId: 'org_1',
     userId: `usr_${id}`,
     createdAt: new Date(),
-    department: 'none' as never,
+    department: 'none',
     jobTitle: null,
     isActive: true,
     deactivated: false,
@@ -51,7 +50,7 @@ function makeMember(overrides: { id: string; role: string | null }): Member & { 
       banExpires: null,
       twoFactorEnabled: false,
     },
-  } as Member & { user: User };
+  };
 }
 
 describe('filterMembersByOwnerOrAdmin', () => {

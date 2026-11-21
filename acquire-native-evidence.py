@@ -12,9 +12,9 @@ spec = importlib.util.spec_from_file_location('supplier', ROOT / 'acquire-source
 supplier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(supplier)
 SOURCES = [
-    ('lovell/sharp', 'e0624568686516209c434de2d3c0ef6688f0811d', ['LICENSE', 'package.json']),
-    ('lovell/sharp-libvips', '20b5e899954907a3039d6e3d4c200aaa0ec52c4c', ['LICENSE', 'README.md', 'build/posix.sh']),
-    ('libvips/libvips', '0c9151a4f416d2f8ae20a755db218f6637050eec', ['LICENSE']),
+    ('lovell/sharp', '51a990faa26ade5586a4934ac9673c98d8893326', ['LICENSE', 'package.json']),
+    ('lovell/sharp-libvips', 'ebb95f8add54eee8bed840e3fb587e4cbec857d7', ['LICENSE', 'README.md', 'build/posix.sh']),
+    ('libvips/libvips', '24ad4d042940e6bf99a68871ba886ca8847c9c82', ['LICENSE']),
 ]
 
 
@@ -32,16 +32,17 @@ if __name__ == '__main__':
             files.append({'path': path, 'sha256': hashlib.sha256(data).hexdigest()})
         evidence['sources'].append({'repository': 'https://github.com/'+repository, 'revision': revision,
             'sourceArchive': 'https://github.com/'+repository+'/archive/'+revision+'.tar.gz', 'retainedFiles': files})
-    for name, version in [('sharp', '0.34.5'), ('@img/sharp-libvips-linux-x64', '1.2.4'), ('@img/sharp-libvips-linuxmusl-x64', '1.2.4')]:
+    for name, version in [('sharp', '0.35.5'), ('@img/sharp-libvips-linux-x64', '1.3.4'), ('@img/sharp-libvips-linuxmusl-x64', '1.3.4')]:
         metadata = json.load(urllib.request.urlopen('https://registry.npmjs.org/'+name+'/'+version, timeout=30))
         evidence['packages'].append({'name': name, 'version': version, 'declaredLicense': metadata.get('license'),
             'archive': metadata['dist']['tarball'], 'integrity': metadata['dist']['integrity']})
-    evidence['libvipsSourceRelease'] = {'version': '8.17.3',
-        'archive': 'https://github.com/libvips/libvips/releases/download/v8.17.3/vips-8.17.3.tar.xz',
-        'publishedChecksum': subprocess.check_output(['gh', 'release', 'download', 'v8.17.3', '--repo', 'libvips/libvips', '--pattern', '*.sha256sum', '--output', '-']).decode().strip()}
-    evidence['runtime'] = {'api': ['@img/sharp-linux-x64/lib/sharp-linux-x64.node', '@img/sharp-libvips-linux-x64/lib/libvips-cpp.so.8.17.3'],
-        'appPortal': 'Both glibc/musl packages present; no mapping observed during inspection, lazy use possible.'}
+    evidence['libvipsSourceRelease'] = {'version': '8.18.7',
+        'archive': 'https://github.com/libvips/libvips/releases/download/v8.18.7/vips-8.18.7.tar.xz',
+        'publishedChecksum': subprocess.check_output(['gh', 'release', 'download', 'v8.18.7', '--repo', 'libvips/libvips', '--pattern', '*.sha256sum', '--output', '-']).decode().strip()}
+    evidence['runtime'] = {'status': 'Candidate build inputs; running mappings require verification after deployment.',
+        'api': ['@img/sharp-linux-x64/lib/sharp-linux-x64.node', '@img/sharp-libvips-linux-x64/lib/libvips-cpp.so.8.18.7'],
+        'appPortal': 'Both glibc/musl packages are build inputs; candidate runtime mappings have not been measured.'}
     destination = ROOT / 'legal/source-evidence/native.json'
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(evidence, indent=2)+'\n')
-    print(json.dumps({'nativeSources': len(evidence['sources']), 'registryIdentities': len(evidence['packages']), 'libvips': '8.17.3'}))
+    print(json.dumps({'nativeSources': len(evidence['sources']), 'registryIdentities': len(evidence['packages']), 'libvips': '8.18.7'}))

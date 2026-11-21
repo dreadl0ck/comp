@@ -1,7 +1,7 @@
 # =============================================================================
 # STAGE 1: Dependencies - Install and cache workspace dependencies
 # =============================================================================
-FROM oven/bun:1.2.8 AS deps
+FROM oven/bun:1.4.5@sha256:3aa040e5445efa09d75bb428a64ba50db13e2b3ac9b6b0c7f145615f62b2ee18 AS deps
 
 WORKDIR /app
 
@@ -48,7 +48,7 @@ RUN PRISMA_SKIP_POSTINSTALL_GENERATE=true bun install --ignore-scripts --frozen-
 FROM scratch AS dependency-lock
 COPY --from=deps /app/bun.lock /bun.lock
 
-FROM oven/bun:1.2.8 AS migrator
+FROM oven/bun:1.4.5@sha256:3aa040e5445efa09d75bb428a64ba50db13e2b3ac9b6b0c7f145615f62b2ee18 AS migrator
 ARG COMP_SOURCE_REVISION
 ARG COMP_SOURCE_SHA256
 LABEL org.opencontainers.image.revision=$COMP_SOURCE_REVISION com.amsterdam-technologies.source.sha256=$COMP_SOURCE_SHA256
@@ -189,7 +189,7 @@ RUN cd apps/app && SKIP_ENV_VALIDATION=true bun run build:docker
 # =============================================================================
 # STAGE 4: App Production
 # =============================================================================
-FROM node:22-alpine3.24@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS app
+FROM node:22.23.5-alpine3.24@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS app
 ARG COMP_SOURCE_REVISION
 ARG COMP_SOURCE_SHA256
 ENV COMP_SOURCE_REVISION=$COMP_SOURCE_REVISION COMP_SOURCE_SHA256=$COMP_SOURCE_SHA256
@@ -261,7 +261,7 @@ RUN cd apps/portal && SKIP_ENV_VALIDATION=true bun run build:docker
 # =============================================================================
 # STAGE 6: Portal Production
 # =============================================================================
-FROM node:22-alpine3.24@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS portal
+FROM node:22.23.5-alpine3.24@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS portal
 ARG COMP_SOURCE_REVISION
 ARG COMP_SOURCE_SHA256
 ENV COMP_SOURCE_REVISION=$COMP_SOURCE_REVISION COMP_SOURCE_SHA256=$COMP_SOURCE_SHA256
