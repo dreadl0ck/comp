@@ -1,8 +1,8 @@
 # Modified Comp source
 
 `LICENSE` retains Comp's AGPLv3 terms. Amsterdam Technologies modifications dated
-2026-10-23 cover self-hosting fixes, authenticated source access, the optional
-OTLP adapter and Inter replacement. `SOURCE-REVISION.json` binds the exact commit
+2026-11-21 cover self-hosting fixes, authenticated source access, the optional
+OTLP adapter, Inter replacement and dependency security updates. `SOURCE-REVISION.json` binds the exact commit
 and modification date. No warranty is provided; recipients retain the license's
 copying, modification and redistribution rights without an NDA or code-host account.
 
@@ -22,8 +22,9 @@ copying, modification and redistribution rights without an NDA or code-host acco
 Use the pinned Bun 1.4.5 Docker builder. `build-locks/app.bun.lock` is shared by
 app/portal; `build-locks/api.bun.lock` covers the API. Both installs are frozen
 and explicitly hoisted, matching the Docker stages' root `node_modules` copies.
-`refresh-build-locks.py` regenerates only dependency-profile exports and checks
-their package versions/integrity against root `bun.lock`.
+`refresh-build-locks.py` derives workspace membership from the Docker `COPY`
+recipes, prunes the reviewed root lock, validates it offline with pinned Bun,
+and checks every resolved version/integrity against root `bun.lock`.
 
 ```sh
 docker build --target app -t comp-app .

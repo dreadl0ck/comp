@@ -111,7 +111,7 @@
         "jspdf-autotable": "^5.0.8",
         "mammoth": "^1.8.0",
         "nanoid": "^5.1.6",
-        "nodemailer": "^6.9.16",
+        "nodemailer": "^10.6.1",
         "pdf-lib": "^1.17.1",
         "playwright-core": "^1.57.0",
         "posthog-node": "^5.29.2",

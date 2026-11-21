@@ -1,12 +1,12 @@
 {
   "app": {
-    "sha256": "be843a23013914a2bbfe0fd477302ed1c85841690e0ef17d874c257b51ad7914",
-    "packages": 2857,
+    "sha256": "31e77ac9b268257ff162500d716d4a0f3acb71880e702fbc0f6bd4a5cd516333",
+    "packages": 2715,
     "newVersions": 0
   },
   "api": {
-    "sha256": "482d44d57cbc29cd3e0b5da238b417e361169a25e2374921ab49803d8eddb16a",
-    "packages": 1697,
+    "sha256": "54a776c04cddd952bd912e0a795b31ed49e98165be9d1a525377c9406a5d45f6",
+    "packages": 1771,
     "newVersions": 0
   }
 }
