@@ -40,6 +40,31 @@ localhost origins for independent builds. Published images receive
 matching archive directory read-only at `/opt/comp-source` before startup.
 The API preloads `apps/api/register-paths.cjs` to resolve compiled `@db` and `@/*` imports; its runtime image build checks both aliases.
 
+Better Auth, `@better-auth/mcp` and `@better-auth/oauth-provider` are pinned to
+1.7.27. `20261121193000_mcp_oauth_provider` adds separate `mcp_oauth_*` tables
+and optional JWKS metadata; legacy OAuth rows remain intact for rollback.
+Legacy OAuth tokens are not accepted by the new provider: users reauthorize.
+Keep `SECRET_KEY` unchanged: existing JWKS private keys are encrypted with it.
+The original Better Auth MIT grant is served at `/legal/BETTER_AUTH_LICENSE.txt`.
+
+| Hosted Gram setting | Requirement |
+| --- | --- |
+| `GRAM_OAUTH_CLIENT_ID`, `GRAM_OAUTH_CLIENT_SECRET`, `GRAM_OAUTH_REDIRECT_URI` | Existing confidential client identity; redirect must match Gram exactly. Startup seeds its hashed secret, PKCE requirement and resource link transactionally. |
+| `MCP_RESOURCE_URL` | Exact HTTPS MCP resource identifier used as the access-token audience. Required with the Gram settings. |
+| `MCP_OAUTH_LOGIN_PAGE` | Optional login page override; defaults to the app's `/auth`. |
+
+With all four required settings absent, hosted OAuth stays disabled. Partial
+configuration fails startup. Public dynamic/client/resource registration stays
+closed. Gram uses authorization-code/S256 and rotating refresh tokens through
+`/api/auth/oauth2/*`; the old `/api/auth/mcp/{authorize,token,register,userinfo}`
+paths forward internally. Discovery advertises the canonical endpoints. Route
+`/.well-known/oauth-authorization-server/api/auth` and
+`/.well-known/oauth-protected-resource` to the API alongside `/api/auth`.
+Gram authenticates with `client_secret_post`. Browser auth includes
+`oauthProviderClient()` to resume signed login requests.
+API token checks verify signature, issuer, audience, access-token type and
+registered client; existing membership, chosen-org and RBAC gates still apply.
+
 `docker-compose.dokploy.yml` supplies build/install/startup commands and variable
 names for PostgreSQL, Redis and storage. Supply fresh local credentials for
 `DATABASE_URL`, `POSTGRES_PASSWORD`, `AUTH_SECRET`, `SECRET_KEY`, service tokens,

@@ -36,6 +36,10 @@ model User {
   oauthAccessTokens OauthAccessToken[]
   oauthConsents     OauthConsent[]
   mcpOrgBinding     McpOrgBinding?
+  mcpOAuthClients       McpOAuthClient[]
+  mcpOAuthRefreshTokens McpOAuthRefreshToken[]
+  mcpOAuthAccessTokens  McpOAuthAccessToken[]
+  mcpOAuthConsents      McpOAuthConsent[]
 
   @@unique([email])
 }
@@ -69,6 +73,9 @@ model Session {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  mcpOAuthRefreshTokens McpOAuthRefreshToken[]
+  mcpOAuthAccessTokens  McpOAuthAccessToken[]
+
   @@unique([token])
   @@index([userId])
   @@index([deviceAgent])
@@ -100,11 +107,8 @@ model Verification {
   updatedAt  DateTime @updatedAt
 }
 
-// ── OAuth 2.0 / OIDC Provider — required by better-auth's mcp/oidcProvider plugin.
-// The MCP server is hosted on Speakeasy Gram; Gram obtains an OAuth access token
-// from this API (better-auth as the authorization server) so end users sign in
-// with Google instead of pasting an API key.
-// Field names MUST match better-auth's expected schema (clientId, redirectUrls, …).
+// Legacy provider records are retained for rollback; the current provider uses
+// the separate mcp_oauth_* tables and requires fresh authorization.
 model OauthApplication {
   id           String   @id @default(dbgenerated("generate_prefixed_cuid('oap'::text)"))
   name         String
@@ -187,6 +191,8 @@ model Jwks {
   privateKey String
   createdAt  DateTime  @default(now())
   expiresAt  DateTime?
+  alg        String?
+  crv        String?
 
   @@map("jwks")
 }

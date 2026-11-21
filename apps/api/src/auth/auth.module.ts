@@ -7,6 +7,7 @@ import { ApiKeyService } from './api-key.service';
 import { AuthController } from './auth.controller';
 import { HybridAuthGuard } from './hybrid-auth.guard';
 import { PermissionGuard } from './permission.guard';
+import { McpClientInitializer } from './mcp-client';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { PermissionGuard } from './permission.guard';
   ],
   controllers: [AuthController],
   providers: [
+    McpClientInitializer,
     ApiKeyService,
     ApiKeyGuard,
     HybridAuthGuard,

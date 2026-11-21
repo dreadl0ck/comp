@@ -1,3 +1,4 @@
+import { oauthProviderClient } from '@better-auth/oauth-provider/client';
 import {
   adminClient,
   emailOTPClient,
@@ -24,6 +25,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333';
 export const authClient = createAuthClient({
   baseURL: BASE_URL,
   plugins: [
+    oauthProviderClient(),
     organizationClient({
       ac,
       roles: allRoles,

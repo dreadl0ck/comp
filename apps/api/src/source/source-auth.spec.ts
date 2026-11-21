@@ -7,10 +7,10 @@ import { SourceController } from './source.controller';
 
 const getSession = jest.fn();
 jest.mock('../auth/auth.server', () => ({
+  getMcpSession: async () => null,
   auth: {
     api: {
       getSession: (...args: unknown[]) => getSession(...args),
-      getMcpSession: async () => null,
     },
   },
 }));

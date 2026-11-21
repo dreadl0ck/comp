@@ -1,0 +1,90 @@
+model McpOAuthClient {
+  id                              String   @id @default(dbgenerated("generate_prefixed_cuid('moc'::text)"))
+  clientId                        String   @unique
+  clientSecret                    String?
+  clientDiscoveryId               String?
+  disabled                        Boolean? @default(false)
+  skipConsent                     Boolean?
+  enableEndSession                Boolean?
+  subjectType                     String?
+  scopes                          String[] @default([])
+  clientCredentialsScopes         String[] @default([])
+  userId                          String?
+  user                            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+  name                            String?
+  uri                             String?
+  icon                            String?
+  contacts                        String[] @default([])
+  tos                             String?
+  policy                          String?
+  softwareId                      String?
+  softwareVersion                 String?
+  softwareStatement               String?
+  redirectUris                    String[]
+  postLogoutRedirectUris          String[] @default([])
+  backchannelLogoutUri            String?
+  backchannelLogoutSessionRequired Boolean?
+  tokenEndpointAuthMethod         String?
+  applicationType                 String?
+  jwks                            String?
+  jwksUri                         String?
+  grantTypes                      String[] @default([])
+  responseTypes                   String[] @default([])
+  requirePKCE                     Boolean?
+  dpopBoundAccessTokens            Boolean? @default(false)
+  referenceId                     String?
+  metadata                        Json?
+
+  resources     McpOAuthClientResource[]
+  refreshTokens McpOAuthRefreshToken[]
+  accessTokens  McpOAuthAccessToken[]
+  consents      McpOAuthConsent[]
+
+  @@index([userId])
+  @@map("mcp_oauth_client")
+}
+
+model McpOAuthResource {
+  id                            String   @id @default(dbgenerated("generate_prefixed_cuid('mor'::text)"))
+  identifier                    String   @unique
+  name                          String
+  accessTokenTtl                Int?
+  refreshTokenTtl               Int?
+  signingAlgorithm              String?
+  signingKeyId                  String?
+  allowedScopes                 String[] @default([])
+  customClaims                  Json?
+  dpopBoundAccessTokensRequired  Boolean? @default(false)
+  disabled                      Boolean? @default(false)
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+  policyVersion                 Int?     @default(1)
+  metadata                      Json?
+  clients                       McpOAuthClientResource[]
+
+  @@map("mcp_oauth_resource")
+}
+
+model McpOAuthClientResource {
+  id         String           @id @default(dbgenerated("generate_prefixed_cuid('mcr'::text)"))
+  clientId   String
+  client     McpOAuthClient    @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  resourceId String
+  resource   McpOAuthResource  @relation(fields: [resourceId], references: [identifier], onDelete: Cascade)
+  metadata   Json?
+  createdAt  DateTime         @default(now())
+
+  @@unique([clientId, resourceId])
+  @@index([clientId])
+  @@index([resourceId])
+  @@map("mcp_oauth_client_resource")
+}
+
+model McpOAuthClientAssertion {
+  id        String   @id @default(dbgenerated("generate_prefixed_cuid('mca'::text)"))
+  expiresAt DateTime
+
+  @@map("mcp_oauth_client_assertion")
+}

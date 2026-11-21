@@ -13,10 +13,10 @@ import { SKIP_ORG_CHECK_KEY } from './skip-org-check.decorator';
 const mockGetSession = jest.fn();
 const mockGetMcpSession = jest.fn();
 jest.mock('./auth.server', () => ({
+  getMcpSession: (...args: unknown[]) => mockGetMcpSession(...args),
   auth: {
     api: {
       getSession: (...args: unknown[]) => mockGetSession(...args),
-      getMcpSession: (...args: unknown[]) => mockGetMcpSession(...args),
     },
   },
 }));

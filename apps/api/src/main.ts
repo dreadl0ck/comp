@@ -16,6 +16,9 @@ import {
 } from './openapi/public-docs-metadata';
 import { corsOriginMiddleware } from './auth/cors-origin.middleware';
 import { adminAuthRateLimiter } from './auth/admin-rate-limit.middleware';
+import { legacyMcpRoutes } from './auth/mcp-routes';
+import { auth, mcpConfig } from './auth/auth.server';
+import { toNodeHandler } from 'better-auth/node';
 import { originCheckMiddleware } from './auth/origin-check.middleware';
 import { mkdirSync, writeFileSync, existsSync } from 'fs';
 
@@ -71,6 +74,14 @@ async function bootstrap(): Promise<void> {
   // STEP 3b: Rate-limit better-auth admin routes (impersonation, ban, set-role, etc.)
   // These bypass NestJS controllers so the global ThrottlerGuard doesn't apply.
   app.use(adminAuthRateLimiter);
+  app.use(legacyMcpRoutes);
+  if (mcpConfig) {
+    app.use(
+      '/.well-known/oauth-authorization-server/api/auth',
+      toNodeHandler(auth),
+    );
+    app.use('/.well-known/oauth-protected-resource', toNodeHandler(auth));
+  }
 
   // STEP 4a: Configure body parser
   // NOTE: Attachment uploads are sent as base64 in JSON, so request payloads are

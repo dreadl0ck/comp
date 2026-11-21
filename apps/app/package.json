@@ -83,6 +83,7 @@
         "ai": "^6.0.175",
         "ai-elements": "^1.6.1",
         "axios": "^1.16.0",
+        "@better-auth/oauth-provider": "1.7.27",
         "better-auth": "^1.6.13",
         "botid": "^1.5.5",
         "canvas-confetti": "^1.9.3",

@@ -1,3 +1,4 @@
 vendor-source/** -text
 apps/app/public/fonts/Inter-OFL.txt -text
 apps/portal/public/fonts/Inter-OFL.txt -text
+apps/app/public/legal/BETTER_AUTH_LICENSE.txt -text -whitespace

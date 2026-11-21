@@ -1,0 +1,77 @@
+model McpOAuthRefreshToken {
+  id                      String         @id @default(dbgenerated("generate_prefixed_cuid('mrt'::text)"))
+  token                   String         @unique
+  clientId                String
+  client                  McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  sessionId               String?
+  session                 Session?       @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  userId                  String
+  user                    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referenceId             String?
+  authorizationCodeId     String?
+  resources               String[]       @default([])
+  requestedUserInfoClaims  String[]       @default([])
+  expiresAt               DateTime
+  createdAt               DateTime       @default(now())
+  revoked                 DateTime?
+  rotatedAt               DateTime?
+  rotationReplayResponse  String?
+  rotationReplayExpiresAt DateTime?
+  authTime                DateTime?
+  confirmation            Json?
+  scopes                  String[]
+  accessTokens            McpOAuthAccessToken[]
+
+  @@index([clientId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([authorizationCodeId])
+  @@map("mcp_oauth_refresh_token")
+}
+
+model McpOAuthAccessToken {
+  id                     String                @id @default(dbgenerated("generate_prefixed_cuid('mat'::text)"))
+  token                  String                @unique
+  clientId               String
+  client                 McpOAuthClient        @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  sessionId              String?
+  session                Session?              @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  userId                 String?
+  user                   User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referenceId            String?
+  authorizationCodeId    String?
+  resources              String[]              @default([])
+  requestedUserInfoClaims String[]              @default([])
+  refreshId              String?
+  refresh                McpOAuthRefreshToken?  @relation(fields: [refreshId], references: [id], onDelete: Cascade)
+  expiresAt              DateTime
+  createdAt              DateTime              @default(now())
+  revoked                DateTime?
+  confirmation           Json?
+  scopes                 String[]
+
+  @@index([clientId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([authorizationCodeId])
+  @@index([refreshId])
+  @@map("mcp_oauth_access_token")
+}
+
+model McpOAuthConsent {
+  id                     String         @id @default(dbgenerated("generate_prefixed_cuid('mcs'::text)"))
+  clientId               String
+  client                 McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  userId                 String?
+  user                   User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referenceId            String?
+  resources              String[]       @default([])
+  requestedUserInfoClaims String[]       @default([])
+  scopes                 String[]
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  @@index([clientId])
+  @@index([userId])
+  @@map("mcp_oauth_consent")
+}

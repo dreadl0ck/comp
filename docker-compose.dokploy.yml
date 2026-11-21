@@ -474,6 +474,11 @@ services:
       # via SMTP below, so the bootstrap escape hatch is off. Setting this to 1
       # again would put every user's login link in the container log.
       LOG_MAGIC_LINKS: ${LOG_MAGIC_LINKS:-0}
+      GRAM_OAUTH_CLIENT_ID: ${GRAM_OAUTH_CLIENT_ID:-}
+      GRAM_OAUTH_CLIENT_SECRET: ${GRAM_OAUTH_CLIENT_SECRET:-}
+      GRAM_OAUTH_REDIRECT_URI: ${GRAM_OAUTH_REDIRECT_URI:-}
+      MCP_RESOURCE_URL: ${MCP_RESOURCE_URL:-}
+      MCP_OAUTH_LOGIN_PAGE: ${MCP_OAUTH_LOGIN_PAGE:-}
       # SMTP — Amsterdam Technologies' own mail server. Replaces the upstream
       # Trigger.dev -> Resend path for all transactional mail (magic link, OTP,
       # invitations), removing two US processors from the auth path. See the
